@@ -1,9 +1,55 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap");
+
+/*
+ * Orbit Editor design tokens — see design.md.
+ * NOTE (desktop): DM Sans is loaded from a CDN above for now. For an offline
+ * native build these woff2 files should be bundled and served via @font-face.
+ */
 :root {
-  color: #202124;
-  background: #f7f7f4;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  /* Surfaces & background */
+  --bg-base: #191a19;
+  --bg-gradient-mid: #101511;
+  --bg-gradient-glow: rgb(58 85 73 / 28%);
+  --chrome-header-top: rgb(31 33 31 / 96%);
+  --chrome-header-bottom: rgb(25 26 25 / 94%);
+  --chrome-status: rgb(25 26 25 / 72%);
+  --surface-panel: rgb(12 15 14 / 78%);
+  --surface-raised: rgb(255 255 255 / 5%);
+
+  /* Ink */
+  --text-primary: #f8fbf4;
+  --text-body: #eff3ea;
+  --text-muted: #aab4a8;
+  --text-subtle: #899487;
+  --text-faint: #6f796e;
+
+  /* Accent */
+  --accent: #9df0b2;
+  --accent-hover: #c5ffd1;
+  --accent-ink: #07100b;
+  --accent-soft: rgb(157 240 178 / 9%);
+  --accent-border: rgb(157 240 178 / 40%);
+
+  /* Status */
+  --danger: #ff6f61;
+  --danger-ink: #ffd1ca;
+  --success: #9df0b2;
+
+  /* Lines */
+  --border: rgb(255 255 255 / 10%);
+  --border-soft: rgb(255 255 255 / 9%);
+
+  /* Shape */
+  --radius: 8px;
+  --radius-pill: 999px;
+  --shadow-panel: 0 24px 80px rgb(0 0 0 / 38%);
+
+  /* Motion */
+  --ease: 160ms ease;
+
+  color: var(--text-body);
+  background: var(--bg-base);
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -12,12 +58,22 @@
 
 * {
   box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html,
+body,
+#root {
+  height: 100%;
 }
 
 body {
-  min-width: 320px;
-  min-height: 100vh;
   margin: 0;
+  overflow: hidden; /* the window is a workspace, not a scrolling page */
+  background:
+    radial-gradient(circle at 18% 12%, var(--bg-gradient-glow), transparent 28rem),
+    linear-gradient(135deg, var(--bg-base) 0%, var(--bg-gradient-mid) 48%, #060706 100%);
 }
 
 button,
@@ -27,83 +83,472 @@ select {
   font: inherit;
 }
 
-.app-shell {
-  min-height: 100vh;
-  padding: 48px;
+input,
+textarea,
+select {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
-  gap: 32px;
-  align-items: start;
-  max-width: 1120px;
-  margin: 0 auto;
-}
-
-.intro {
-  max-width: 680px;
-}
-
-.eyebrow {
-  margin: 0 0 12px;
-  color: #53605a;
-  font-size: 0.875rem;
-  font-weight: 700;
-  text-transform: uppercase;
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 h1,
 h2,
+h3,
 p {
   margin-top: 0;
 }
 
-h1 {
-  margin-bottom: 16px;
-  color: #111413;
-  font-size: 3.5rem;
+/* --- App shell: custom title bar / workspace / status bar -------------- */
+
+.app-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 44px;
+  padding: 0 18px 0 94px;
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  background:
+    linear-gradient(180deg, var(--chrome-header-top), var(--chrome-header-bottom)), var(--bg-base);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+}
+
+.brand-cluster {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 10px;
+  min-width: 0;
+}
+
+.app-header .wordmark {
+  color: rgb(248 251 244 / 92%);
+  font-size: 0.86rem;
+  font-weight: 800;
   line-height: 1;
+  white-space: nowrap;
 }
 
-h2 {
-  margin-bottom: 16px;
-  font-size: 1.125rem;
+.alpha-badge {
+  border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / 5%);
+  color: rgb(248 251 244 / 34%);
+  padding: 3px 7px;
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
-p {
-  color: #4b514e;
-  font-size: 1.125rem;
-  line-height: 1.6;
+.header-divider {
+  align-self: stretch;
+  width: 1px;
+  margin: 0 6px;
+  background: rgb(255 255 255 / 11%);
 }
 
-.panel {
-  border: 1px solid #d7d9d2;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 24px;
-  box-shadow: 0 16px 40px rgb(30 35 32 / 8%);
+.header-context {
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 120px;
+  color: var(--text-primary);
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-ul {
-  display: grid;
+.workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 28px;
+}
+
+/* --- Status bar -------------------------------------------------------- */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: 0 0 auto;
+  padding: 8px 20px;
+  border-top: 1px solid var(--border-soft);
+  background: var(--chrome-status);
+  color: var(--text-subtle);
+  font-size: 0.8rem;
+}
+
+.status-bar .status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.status-bar .status-item.path {
+  overflow: hidden;
+}
+
+.status-bar .status-item.path span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-bar .status-spacer {
+  margin-left: auto;
+}
+
+.status-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.status-dot[data-state="ok"] {
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.status-dot[data-state="error"] {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgb(255 111 97 / 12%);
+}
+
+/* --- Project selection layout ----------------------------------------- */
+
+.project-selection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 720px;
+  min-height: 100%;
+  margin: 0 auto;
+}
+
+.brand-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 480px;
+  min-width: 0;
+}
+
+.brand-panel h1 {
+  max-width: 460px;
+  margin: 0 0 12px;
+  color: var(--text-primary);
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.intro-copy {
+  max-width: 480px;
+  margin-bottom: 28px;
+  color: var(--text-muted);
+  font-size: 1.02rem;
+  line-height: 1.55;
+}
+
+.primary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
-  margin: 0;
-  padding-left: 20px;
-  color: #343936;
-  line-height: 1.5;
+  margin-bottom: 18px;
 }
 
-@media (max-width: 760px) {
-  .app-shell {
-    padding: 28px;
-  }
+/* --- Buttons ----------------------------------------------------------- */
 
+.primary-button {
+  min-height: 48px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 0 22px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background var(--ease),
+    transform var(--ease);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.primary-button .shortcut-hint {
+  margin-left: 8px;
+  opacity: 0.6;
+  font-weight: 700;
+  font-size: 0.85em;
+}
+
+.primary-button:disabled,
+.recent-project-main:disabled,
+.recent-remove-button:disabled,
+.recent-remove-confirm button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+/* --- Pills ------------------------------------------------------------- */
+
+.section-heading span {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  color: var(--text-subtle);
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* --- Banners ----------------------------------------------------------- */
+
+.error-banner {
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.error-banner {
+  border: 1px solid rgb(255 111 97 / 28%);
+  background: rgb(255 111 97 / 10%);
+  color: var(--danger-ink);
+}
+
+/* --- Recent projects --------------------------------------------------- */
+
+.recent-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 28px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.recent-list {
+  display: grid;
+  gap: 10px;
+}
+
+.recent-list {
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.recent-project {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  transition:
+    border-color var(--ease),
+    background var(--ease);
+}
+
+.recent-project:hover,
+.recent-project:focus-within {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.recent-project-main {
+  width: 100%;
+  min-height: 68px;
+  border: 0;
+  background: transparent;
+  padding: 13px 44px 13px 14px;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent-project span,
+.recent-project small {
+  display: block;
+}
+
+.recent-project span {
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.recent-project small {
+  overflow: hidden;
+  color: var(--text-subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-remove-button {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    border-color var(--ease),
+    background var(--ease),
+    color var(--ease),
+    opacity var(--ease);
+}
+
+.recent-project:hover .recent-remove-button,
+.recent-project:focus-within .recent-remove-button {
+  opacity: 1;
+}
+
+.recent-remove-button:hover:not(:disabled),
+.recent-remove-button:focus-visible {
+  background: transparent;
+  color: var(--danger-ink);
+}
+
+.recent-remove-button svg {
+  display: block;
+}
+
+.recent-remove-confirm {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 16px);
+  border: 1px solid rgb(255 111 97 / 26%);
+  border-radius: var(--radius);
+  background: rgb(11 13 12 / 96%);
+  margin: 0;
+  min-inline-size: 0;
+  padding: 6px;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 34%);
+}
+
+.recent-remove-confirm span {
+  margin: 0 4px 0 2px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.recent-remove-confirm button {
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 6%);
+  color: var(--text-primary);
+  padding: 5px 8px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.recent-remove-confirm button:first-of-type {
+  border-color: rgb(255 111 97 / 35%);
+  color: var(--danger-ink);
+}
+
+.recent-remove-confirm button:hover:not(:disabled),
+.recent-remove-confirm button:focus-visible {
+  background: rgb(255 255 255 / 12%);
+}
+
+.empty-state {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.92rem;
+}
+
+/* --- Focus ------------------------------------------------------------- */
+
+button:focus-visible,
+.recent-project-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* --- Graceful degradation for a very small window (not a mobile target) */
+
+@media (max-width: 880px) {
   .workspace {
-    grid-template-columns: 1fr;
+    padding: 16px;
   }
 
-  h1 {
-    font-size: 2.5rem;
+  .app-header {
+    gap: 10px;
+    height: 44px;
+    padding-right: 12px;
+    padding-left: 94px;
+  }
+
+  .alpha-badge,
+  .header-divider,
+  .header-context {
+    display: none;
+  }
+
+  .project-selection {
+    align-items: flex-start;
+  }
+
+  .brand-panel h1 {
+    font-size: 1.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+
+  .primary-button:hover:not(:disabled) {
+    transform: none;
   }
 }

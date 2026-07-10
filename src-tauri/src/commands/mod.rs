@@ -1,10 +1,27 @@
+use tauri_plugin_dialog::DialogExt;
+
 #[tauri::command]
-pub fn open_project() -> Result<(), String> {
-    Err("Project folder selection is not implemented yet.".to_string())
+pub async fn open_project(
+    app: tauri::AppHandle,
+) -> Result<Option<crate::project::ProjectValidation>, String> {
+    let Some(folder_path) = app
+        .dialog()
+        .file()
+        .set_title("Open Astro Project")
+        .blocking_pick_folder()
+    else {
+        return Ok(None);
+    };
+
+    let path = folder_path
+        .into_path()
+        .map_err(|_| "Could not read the selected folder path.".to_string())?;
+
+    crate::project::scan_project_path(&path).map(Some)
 }
 
 #[tauri::command]
-pub fn scan_project(project_path: String) -> Result<(), String> {
+pub fn scan_project(project_path: String) -> Result<crate::project::ProjectValidation, String> {
     crate::project::scan_project(&project_path)
 }
 
