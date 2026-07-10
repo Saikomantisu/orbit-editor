@@ -41,6 +41,20 @@ pub fn read_entry(file_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn create_entry(
+    input: crate::content::CreateEntryInput,
+) -> Result<crate::content::EntrySummary, String> {
+    crate::content::create_entry(input)
+}
+
+#[tauri::command]
+pub fn duplicate_entry(
+    input: crate::content::DuplicateEntryInput,
+) -> Result<crate::content::EntrySummary, String> {
+    crate::content::duplicate_entry(input)
+}
+
+#[tauri::command]
 pub fn save_entry(
     file_path: String,
     frontmatter: serde_json::Value,
@@ -50,8 +64,8 @@ pub fn save_entry(
 }
 
 #[tauri::command]
-pub fn delete_entry(file_path: String) -> Result<(), String> {
-    crate::content::delete_entry(&file_path)
+pub fn delete_entry(input: crate::content::DeleteEntryInput) -> Result<(), String> {
+    crate::content::delete_entry(input)
 }
 
 #[tauri::command]

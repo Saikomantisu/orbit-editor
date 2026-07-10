@@ -59,17 +59,17 @@ Orbit Editor v0.1 is complete when a user can:
 
 ## 4. Entry List
 
-- [ ] Display entries for a selected collection.
-- [ ] Show entry title when available.
-- [ ] Show slug.
-- [ ] Show last modified time.
-- [ ] Show draft status when available.
-- [ ] Add entry search.
-- [ ] Add entry sorting.
-- [ ] Add create entry action.
-- [ ] Add delete entry action with confirmation.
-- [ ] Add duplicate entry action.
-- [ ] Handle empty collections.
+- [x] Display entries for a selected collection.
+- [x] Show entry title when available.
+- [x] Show slug.
+- [x] Show last modified time.
+- [x] Show draft status when available.
+- [x] Add entry search.
+- [x] Add entry sorting.
+- [x] Add create entry action.
+- [x] Add delete entry action with confirmation.
+- [x] Add duplicate entry action.
+- [x] Handle empty collections.
 
 ## 5. Visual Frontmatter Editor
 
@@ -146,16 +146,16 @@ Orbit Editor v0.1 is complete when a user can:
 - [ ] Test opening an invalid project.
 - [ ] Test collection detection.
 - [x] Test schema detection fallback behavior.
-- [ ] Test reading `.md` entries.
-- [ ] Test reading `.mdx` entries.
-- [ ] Test creating an entry.
+- [x] Test reading `.md` entries.
+- [x] Test reading `.mdx` entries.
+- [x] Test creating an entry.
 - [ ] Test editing frontmatter.
 - [ ] Test editing Markdown.
 - [ ] Test saving changes.
 - [ ] Test invalid frontmatter handling.
 - [ ] Test missing file handling.
 - [ ] Test delete confirmation.
-- [ ] Test duplicate entry behavior.
+- [x] Test duplicate entry behavior.
 - [ ] Test preview start and stop behavior.
 
 ## Out Of Scope For v0.1

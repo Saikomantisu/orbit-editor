@@ -1,6 +1,8 @@
 import { FileCode2, FileText, FolderOpen, PenLine } from "lucide-react";
 import { toTitleCase } from "../../lib/format";
 import type { CollectionSummary, EntrySummary } from "../../lib/tauri";
+import { Badge } from "../../ui/Badge";
+import { EmptyState } from "../../ui/EmptyState";
 
 type EntryEditorPlaceholderProps = {
   collection: CollectionSummary | null;
@@ -15,11 +17,14 @@ type EntryEditorPlaceholderProps = {
 export function EntryEditorPlaceholder({ collection, entry }: EntryEditorPlaceholderProps) {
   if (!collection) {
     return (
-      <section className="ws-editor">
-        <div className="ws-editor-empty">
-          <FolderOpen aria-hidden="true" size={26} strokeWidth={1.8} />
-          <h2>Select a collection</h2>
-          <p>Choose a collection from the sidebar to browse its entries and schema.</p>
+      <section className="min-w-0 bg-bg-base p-8">
+        <div className="flex h-full items-center justify-center">
+          <EmptyState
+            icon={<FolderOpen aria-hidden="true" size={26} strokeWidth={1.8} />}
+            title="Select a collection"
+          >
+            Choose a collection from the sidebar to browse its entries and schema.
+          </EmptyState>
         </div>
       </section>
     );
@@ -28,14 +33,15 @@ export function EntryEditorPlaceholder({ collection, entry }: EntryEditorPlaceho
   if (!entry) {
     const entryLabel = collection.entries.length === 1 ? "entry" : "entries";
     return (
-      <section className="ws-editor">
-        <div className="ws-editor-empty">
-          <FileText aria-hidden="true" size={26} strokeWidth={1.8} />
-          <h2>Select an entry</h2>
-          <p>
+      <section className="min-w-0 bg-bg-base p-8">
+        <div className="flex h-full items-center justify-center">
+          <EmptyState
+            icon={<FileText aria-hidden="true" size={26} strokeWidth={1.8} />}
+            title="Select an entry"
+          >
             {collection.name} has {collection.entries.length} {entryLabel}. Pick one from the
             sidebar to open it.
-          </p>
+          </EmptyState>
         </div>
       </section>
     );
@@ -44,23 +50,37 @@ export function EntryEditorPlaceholder({ collection, entry }: EntryEditorPlaceho
   const Icon = entry.extension === "mdx" ? FileCode2 : FileText;
 
   return (
-    <section className="ws-editor">
-      <div className="ws-editor-entry">
-        <div className="ws-editor-entry-head">
-          <Icon aria-hidden="true" size={18} strokeWidth={2.1} />
-          <div>
-            <h2 title={entry.slug}>{toTitleCase(entry.slug)}</h2>
-            <p title={entry.filePath}>{entry.filePath}</p>
+    <section className="min-w-0 bg-bg-base p-8">
+      <div className="mx-auto grid h-full max-w-3xl content-start gap-5">
+        <div className="flex min-w-0 items-start gap-3 rounded-orbit border border-white/10 bg-surface-panel p-4">
+          <Icon
+            aria-hidden="true"
+            className="mt-0.5 shrink-0 text-text-subtle"
+            size={18}
+            strokeWidth={2.1}
+          />
+          <div className="min-w-0 flex-1">
+            <h2 className="m-0 truncate text-lg font-black text-text-primary" title={entry.slug}>
+              {toTitleCase(entry.slug)}
+            </h2>
+            <p
+              className="m-0 mt-1 truncate text-[0.8rem] font-bold text-text-faint"
+              title={entry.filePath}
+            >
+              {entry.filePath}
+            </p>
           </div>
-          <span className="entry-ext-badge" data-ext={entry.extension}>
+          <Badge variant={entry.extension === "mdx" ? "accent" : "neutral"}>
             {entry.extension.toUpperCase()}
-          </span>
+          </Badge>
         </div>
 
-        <div className="ws-editor-soon">
-          <PenLine aria-hidden="true" size={24} strokeWidth={1.8} />
-          <h3>Visual editing is coming soon</h3>
-          <p>
+        <div className="grid place-items-center gap-2.5 rounded-orbit border border-dashed border-white/10 bg-white/[0.025] px-6 py-10 text-center">
+          <PenLine aria-hidden="true" className="text-text-faint" size={24} strokeWidth={1.8} />
+          <h3 className="m-0 text-base font-black text-text-muted">
+            Visual editing is coming soon
+          </h3>
+          <p className="m-0 max-w-[32rem] text-[0.86rem] leading-6 text-text-faint">
             Reading and editing entry content isn't available yet. For now, open this file in your
             editor — Orbit Editor never changes files behind your back.
           </p>

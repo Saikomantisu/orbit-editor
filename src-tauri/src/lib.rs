@@ -14,6 +14,8 @@ pub fn run() {
             commands::scan_collections,
             commands::read_collection,
             commands::read_entry,
+            commands::create_entry,
+            commands::duplicate_entry,
             commands::save_entry,
             commands::delete_entry,
             commands::start_dev_server,

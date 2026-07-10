@@ -3,15 +3,19 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  FileCode2,
-  FileText,
   Folder,
   RefreshCw,
 } from "lucide-react";
-import { capitalizeFirst, toTitleCase } from "../../lib/format";
-import type { CollectionScan, CollectionSummary, EntrySummary } from "../../lib/tauri";
+import { capitalizeFirst } from "../../lib/format";
+import type { CollectionScan, CollectionSummary } from "../../lib/tauri";
+import { Badge } from "../../ui/Badge";
+import { Button } from "../../ui/Button";
+import { EmptyState } from "../../ui/EmptyState";
+import { IconButton } from "../../ui/IconButton";
+import { EntryList } from "./EntryList";
 
 type CollectionSidebarProps = {
+  projectPath: string;
   scan: CollectionScan | null;
   isLoading: boolean;
   errorMessage: string | null;
@@ -24,9 +28,12 @@ type CollectionSidebarProps = {
   onSelectCollection: (name: string) => void;
   onBackToCollections: () => void;
   onSelectEntry: (id: string) => void;
+  onClearSelectedEntry: () => void;
+  onRefreshCollections: () => Promise<void> | void;
 };
 
 export function CollectionSidebar({
+  projectPath,
   scan,
   isLoading,
   errorMessage,
@@ -39,80 +46,98 @@ export function CollectionSidebar({
   onSelectCollection,
   onBackToCollections,
   onSelectEntry,
+  onClearSelectedEntry,
+  onRefreshCollections,
 }: CollectionSidebarProps) {
   if (isCollapsed) {
     return (
-      <aside className="ws-rail ws-rail-left" aria-label="Collections and entries">
-        <button
-          className="ws-icon-button"
-          type="button"
+      <aside
+        className="flex w-12 shrink-0 justify-center border-r border-white/10 bg-surface-panel p-2"
+        aria-label="Collections and entries"
+      >
+        <IconButton
+          label="Expand sidebar"
+          tooltip="Expand sidebar"
           onClick={onToggleCollapsed}
-          title="Expand sidebar"
-          aria-label="Expand sidebar"
         >
           <ChevronRight aria-hidden="true" size={16} strokeWidth={2.2} />
-        </button>
+        </IconButton>
       </aside>
     );
   }
 
   return (
-    <aside className="ws-sidebar" aria-label="Collections and entries">
-      <header className="ws-sidebar-header">
-        <button
-          className="workspace-back-button"
-          type="button"
+    <aside
+      className="flex w-[300px] min-w-0 shrink-0 flex-col border-r border-white/10 bg-surface-panel"
+      aria-label="Collections and entries"
+    >
+      <header className="flex min-h-12 items-center gap-2 border-b border-white/10 px-3">
+        <Button
+          className="px-2.5"
+          size="sm"
+          variant="ghost"
           onClick={onBackHome}
-          title="Back to home"
         >
           <ArrowLeft aria-hidden="true" size={15} strokeWidth={2.4} />
-          <span>Home</span>
-        </button>
+          <span className="text-sm">Home</span>
+        </Button>
 
-        <div className="ws-sidebar-spacer" aria-hidden="true" />
+        <div className="flex-1" aria-hidden="true" />
 
-        <button
-          className="ws-icon-button"
-          type="button"
+        <IconButton
+          label="Rescan collections"
+          tooltip="Rescan collections"
           onClick={onRetry}
           disabled={isLoading}
-          title="Rescan collections"
         >
           <RefreshCw
             aria-hidden="true"
             size={15}
             strokeWidth={2.2}
-            className={isLoading ? "is-spinning" : undefined}
+            className={isLoading ? "animate-spin" : undefined}
           />
-        </button>
+        </IconButton>
 
-        <button
-          className="ws-icon-button"
-          type="button"
+        <IconButton
+          label="Collapse sidebar"
+          tooltip="Collapse sidebar"
           onClick={onToggleCollapsed}
-          title="Collapse sidebar"
-          aria-label="Collapse sidebar"
         >
           <ChevronLeft aria-hidden="true" size={16} strokeWidth={2.2} />
-        </button>
+        </IconButton>
       </header>
 
-      <div className="ws-sidebar-body">
-        {isLoading ? <p className="ws-sidebar-message">Scanning collections…</p> : null}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4">
+        {isLoading ? (
+          <p className="m-0 text-[0.82rem] font-bold text-text-faint">
+            Scanning collections...
+          </p>
+        ) : null}
 
         {!isLoading && errorMessage ? (
-          <div className="workspace-alert" role="alert">
-            <AlertCircle aria-hidden="true" size={18} strokeWidth={2.2} />
+          <div
+            className="flex items-start gap-2 rounded-orbit border border-danger/25 bg-danger/10 px-3 py-2.5 text-[0.82rem] leading-5 text-danger-ink"
+            role="alert"
+          >
+            <AlertCircle
+              aria-hidden="true"
+              className="mt-0.5 shrink-0"
+              size={18}
+              strokeWidth={2.2}
+            />
             <span>{errorMessage}</span>
           </div>
         ) : null}
 
         {!isLoading && !errorMessage && selectedCollection ? (
           <EntryList
+            projectPath={projectPath}
             collection={selectedCollection}
             selectedEntryId={selectedEntryId}
             onBackToCollections={onBackToCollections}
             onSelectEntry={onSelectEntry}
+            onClearSelectedEntry={onClearSelectedEntry}
+            onRefreshCollections={onRefreshCollections}
           />
         ) : null}
 
@@ -136,28 +161,49 @@ function CollectionList({
   return (
     <>
       {collections.length === 0 ? (
-        <div className="ws-empty">
-          <Folder aria-hidden="true" size={20} strokeWidth={2.1} />
-          <strong>No collections found</strong>
-          {scan ? <span title={scan.contentPath}>{scan.contentPath}</span> : null}
-        </div>
+        <EmptyState
+          icon={<Folder aria-hidden="true" size={20} strokeWidth={2.1} />}
+          title="No collections found"
+        >
+          {scan ? (
+            <span title={scan.contentPath}>{scan.contentPath}</span>
+          ) : null}
+        </EmptyState>
       ) : (
-        <ul className="ws-nav">
+        <ul className="m-0 grid list-none gap-1.5 p-0">
           {collections.map((collection) => (
             <li key={collection.path}>
               <button
-                className="ws-nav-item ws-nav-collection"
+                className="flex min-h-[42px] w-full min-w-0 items-center gap-2.5 rounded-orbit border border-transparent bg-transparent px-3 py-2 text-left text-text-body transition-colors hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/45"
                 type="button"
                 onClick={() => onSelectCollection(collection.name)}
               >
-                <Folder aria-hidden="true" size={16} strokeWidth={2.1} />
-                <span className="ws-nav-text">
-                  <strong title={collection.name}>{capitalizeFirst(collection.name)}</strong>
+                <Folder
+                  aria-hidden="true"
+                  className="shrink-0 text-text-subtle"
+                  size={16}
+                  strokeWidth={2.1}
+                />
+                <span className="min-w-0 flex-1">
+                  <strong
+                    className="block truncate text-[0.82rem] font-black text-text-muted"
+                    title={collection.name}
+                  >
+                    {capitalizeFirst(collection.name)}
+                  </strong>
                 </span>
-                <span className="ws-nav-count" title={entryCountLabel(collection.entries.length)}>
+                <Badge
+                  variant="muted"
+                  title={entryCountLabel(collection.entries.length)}
+                >
                   {collection.entries.length}
-                </span>
-                <ChevronRight aria-hidden="true" size={15} strokeWidth={2.2} />
+                </Badge>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="shrink-0 text-text-faint"
+                  size={15}
+                  strokeWidth={2.2}
+                />
               </button>
             </li>
           ))}
@@ -165,101 +211,6 @@ function CollectionList({
       )}
     </>
   );
-}
-
-function EntryList({
-  collection,
-  selectedEntryId,
-  onBackToCollections,
-  onSelectEntry,
-}: {
-  collection: CollectionSummary;
-  selectedEntryId: string | null;
-  onBackToCollections: () => void;
-  onSelectEntry: (id: string) => void;
-}) {
-  return (
-    <>
-      <div className="ws-entry-head">
-        <button
-          className="ws-back-collections"
-          type="button"
-          onClick={onBackToCollections}
-          title="Back to collections"
-        >
-          <ChevronLeft aria-hidden="true" size={16} strokeWidth={2.6} />
-          <span className="ws-collection-name" title={collection.name}>
-            {capitalizeFirst(collection.name)}
-          </span>
-        </button>
-        <span className="ws-nav-count" title={entryCountLabel(collection.entries.length)}>
-          {collection.entries.length}
-        </span>
-      </div>
-
-      {collection.warnings.length ? (
-        <div className="warning-list ws-warning-list">
-          {collection.warnings.map((warning) => (
-            <p key={warning}>{warning}</p>
-          ))}
-        </div>
-      ) : null}
-
-      {collection.entries.length === 0 ? (
-        <div className="ws-empty">
-          <FileText aria-hidden="true" size={20} strokeWidth={2.1} />
-          <strong>No entries yet</strong>
-          <span>This collection has no Markdown or MDX files.</span>
-        </div>
-      ) : (
-        <ul className="ws-nav">
-          {collection.entries.map((entry) => (
-            <li key={entry.id}>
-              <EntryRow
-                entry={entry}
-                isSelected={entry.id === selectedEntryId}
-                onSelect={() => onSelectEntry(entry.id)}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
-  );
-}
-
-function EntryRow({
-  entry,
-  isSelected,
-  onSelect,
-}: {
-  entry: EntrySummary;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
-  const Icon = entry.extension === "mdx" ? FileCode2 : FileText;
-
-  return (
-    <button
-      className="ws-nav-item ws-nav-entry"
-      type="button"
-      aria-current={isSelected ? "true" : undefined}
-      onClick={onSelect}
-    >
-      <Icon aria-hidden="true" size={16} strokeWidth={2.1} />
-      <span className="ws-nav-text">
-        <strong title={entry.slug}>{toTitleCase(entry.slug)}</strong>
-        <small title={entry.filePath}>{fileName(entry.filePath)}</small>
-      </span>
-      <span className="entry-ext-badge" data-ext={entry.extension}>
-        {entry.extension.toUpperCase()}
-      </span>
-    </button>
-  );
-}
-
-function fileName(filePath: string) {
-  return filePath.split(/[\\/]/).pop() ?? filePath;
 }
 
 function entryCountLabel(count: number) {

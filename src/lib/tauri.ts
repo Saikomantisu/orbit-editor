@@ -23,8 +23,11 @@ export type EntryExtension = "md" | "mdx";
 export type EntrySummary = {
   id: string;
   slug: string;
+  title: string | null;
   filePath: string;
   extension: EntryExtension;
+  lastModified: string | null;
+  draft: boolean | null;
 };
 
 export type SchemaSource = "contentConfig" | "frontmatterInference";
@@ -59,6 +62,25 @@ export type CollectionScan = {
   warnings: string[];
 };
 
+export type CreateEntryInput = {
+  projectPath: string;
+  collection: string;
+  slug: string;
+  extension: EntryExtension;
+  title: string;
+};
+
+export type DuplicateEntryInput = {
+  projectPath: string;
+  sourceFilePath: string;
+  newSlug: string;
+};
+
+export type DeleteEntryInput = {
+  projectPath: string;
+  filePath: string;
+};
+
 export function openProject() {
   return invoke<ProjectValidation | null>("open_project");
 }
@@ -69,6 +91,18 @@ export function scanProject(projectPath: string) {
 
 export function scanCollections(projectPath: string) {
   return invoke<CollectionScan>("scan_collections", { projectPath });
+}
+
+export function createEntry(input: CreateEntryInput) {
+  return invoke<EntrySummary>("create_entry", { input });
+}
+
+export function duplicateEntry(input: DuplicateEntryInput) {
+  return invoke<EntrySummary>("duplicate_entry", { input });
+}
+
+export function deleteEntry(input: DeleteEntryInput) {
+  return invoke<void>("delete_entry", { input });
 }
 
 export function startWindowDrag() {

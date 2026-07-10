@@ -22,6 +22,7 @@ type ProjectWorkspaceProps = {
  * instead of pointing at something that no longer exists.
  */
 export function ProjectWorkspace({
+  project,
   scan,
   isLoading,
   errorMessage,
@@ -50,12 +51,9 @@ export function ProjectWorkspace({
   }
 
   return (
-    <div
-      className="project-workspace"
-      data-sidebar={sidebarOpen ? "open" : "collapsed"}
-      data-inspector={inspectorOpen ? "open" : "collapsed"}
-    >
+    <div className="grid h-full min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] bg-bg-base">
       <CollectionSidebar
+        projectPath={project.path}
         scan={scan}
         isLoading={isLoading}
         errorMessage={errorMessage}
@@ -68,6 +66,8 @@ export function ProjectWorkspace({
         onSelectCollection={selectCollection}
         onBackToCollections={backToCollections}
         onSelectEntry={setSelectedEntryId}
+        onClearSelectedEntry={() => setSelectedEntryId(null)}
+        onRefreshCollections={onRetry}
       />
 
       <EntryEditorPlaceholder collection={selectedCollection} entry={selectedEntry} />

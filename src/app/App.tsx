@@ -162,10 +162,10 @@ export function App() {
 
   const retryCollectionScan = useCallback(() => {
     if (!selectedProject) {
-      return;
+      return Promise.resolve();
     }
 
-    void loadCollections(selectedProject);
+    return loadCollections(selectedProject);
   }, [loadCollections, selectedProject]);
 
   const returnHome = useCallback(() => {
@@ -200,21 +200,40 @@ export function App() {
   }, [chooseProject, isChoosing]);
 
   return (
-    <div className="app-window">
-      <header className="app-header" data-tauri-drag-region onPointerDown={handleHeaderPointerDown}>
-        <div className="brand-cluster" data-tauri-drag-region>
-          <span className="wordmark">Orbit Editor</span>
-          <span className="alpha-badge">Alpha</span>
+    <div className="flex h-screen flex-col overflow-hidden bg-bg-base">
+      <header
+        className="flex h-11 shrink-0 items-center gap-3.5 border-b border-white/15 bg-[linear-gradient(180deg,rgb(20_22_42/0.96),rgb(13_15_30/0.94))] px-[18px] pl-[94px] shadow-[inset_0_1px_0_rgb(255_255_255/0.08)] backdrop-blur-[18px]"
+        data-tauri-drag-region
+        onPointerDown={handleHeaderPointerDown}
+      >
+        <div
+          className="flex w-[186px] shrink-0 items-center gap-2.5 min-w-0"
+          data-tauri-drag-region
+        >
+          <span className="whitespace-nowrap text-[0.86rem] font-black leading-none text-text-primary/90">
+            Orbit Editor
+          </span>
+          <span className="rounded-full bg-white/[0.05] px-1.5 py-0.5 text-[0.54rem] font-black uppercase leading-none tracking-[0.08em] text-text-primary/35">
+            Alpha
+          </span>
         </div>
 
-        <div className="header-divider" aria-hidden="true" />
+        <div className="mx-1.5 h-full w-px bg-white/10" aria-hidden="true" />
 
-        <div className="header-context" title={selectedProject?.path} data-tauri-drag-region>
+        <div
+          className="min-w-[120px] flex-1 truncate text-[0.86rem] font-black text-text-primary"
+          title={selectedProject?.path}
+          data-tauri-drag-region
+        >
           {selectedProject ? selectedProject.name : "New project"}
         </div>
       </header>
 
-      <main className="workspace" data-view={selectedProject ? "project" : "home"}>
+      <main
+        className={
+          selectedProject ? "min-h-0 flex-1 overflow-hidden" : "min-h-0 flex-1 overflow-auto p-10"
+        }
+      >
         {selectedProject ? (
           <ProjectWorkspace
             project={selectedProject}
@@ -225,7 +244,7 @@ export function App() {
             onBackHome={returnHome}
           />
         ) : (
-          <div className="project-selection">
+          <div className="mx-auto flex min-h-full max-w-[720px] items-center justify-center">
             <ProjectPicker
               recentProjects={recentProjects}
               isChoosing={isChoosing}

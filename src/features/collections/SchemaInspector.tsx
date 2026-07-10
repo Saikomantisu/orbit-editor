@@ -1,5 +1,8 @@
 import { AlertCircle, Asterisk, ChevronLeft, ChevronRight, ListTree } from "lucide-react";
 import type { CollectionSummary, FieldSchema } from "../../lib/tauri";
+import { Badge } from "../../ui/Badge";
+import { EmptyState } from "../../ui/EmptyState";
+import { IconButton } from "../../ui/IconButton";
 
 type SchemaInspectorProps = {
   collection: CollectionSummary | null;
@@ -16,79 +19,74 @@ export function SchemaInspector({
 
   if (isCollapsed) {
     return (
-      <aside className="ws-rail ws-rail-right" aria-label="Schema fields">
-        <button
-          className="ws-icon-button"
-          type="button"
-          onClick={onToggleCollapsed}
-          title="Expand schema"
-          aria-label="Expand schema"
-        >
+      <aside
+        className="flex w-12 shrink-0 justify-center border-l border-white/10 bg-surface-panel p-2"
+        aria-label="Schema fields"
+      >
+        <IconButton label="Expand schema" tooltip="Expand schema" onClick={onToggleCollapsed}>
           <ChevronLeft aria-hidden="true" size={16} strokeWidth={2.2} />
-        </button>
+        </IconButton>
       </aside>
     );
   }
 
   return (
-    <aside className="ws-inspector" aria-label="Schema fields">
-      <header className="ws-inspector-header">
-        <div className="ws-inspector-title">
-          <button
-            className="ws-icon-button"
-            type="button"
-            onClick={onToggleCollapsed}
-            title="Collapse schema"
-            aria-label="Collapse schema"
-          >
+    <aside
+      className="flex w-[280px] min-w-0 shrink-0 flex-col border-l border-white/10 bg-surface-panel"
+      aria-label="Schema fields"
+    >
+      <header className="flex min-h-12 items-center justify-between gap-2 border-b border-white/10 px-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <IconButton label="Collapse schema" tooltip="Collapse schema" onClick={onToggleCollapsed}>
             <ChevronRight aria-hidden="true" size={16} strokeWidth={2.2} />
-          </button>
-          <h2>Schema</h2>
+          </IconButton>
+          <h2 className="m-0 text-[0.86rem] font-black text-text-primary">Schema</h2>
         </div>
-        {schema?.source === "contentConfig" ? (
-          <span className="schema-source-badge" data-source={schema.source}>
-            From config
-          </span>
-        ) : null}
+        {schema?.source === "contentConfig" ? <Badge variant="accent">From config</Badge> : null}
       </header>
 
-      <div className="ws-inspector-body">
+      <div className="min-h-0 flex-1 overflow-auto p-4">
         {!collection ? (
-          <div className="ws-empty">
-            <ListTree aria-hidden="true" size={20} strokeWidth={2.1} />
-            <strong>No collection selected</strong>
-            <span>Pick a collection to inspect its schema fields.</span>
-          </div>
+          <EmptyState
+            icon={<ListTree aria-hidden="true" size={20} strokeWidth={2.1} />}
+            title="No collection selected"
+          >
+            Pick a collection to inspect its schema fields.
+          </EmptyState>
         ) : !schema || schema.fields.length === 0 ? (
-          <div className="ws-empty">
-            <ListTree aria-hidden="true" size={20} strokeWidth={2.1} />
-            <strong>No schema detected</strong>
-            <span>
-              Orbit Editor could not read a schema for <em>{collection.name}</em> from
-              content.config or its frontmatter.
-            </span>
-          </div>
+          <EmptyState
+            icon={<ListTree aria-hidden="true" size={20} strokeWidth={2.1} />}
+            title="No schema detected"
+          >
+            Orbit Editor could not read a schema for <em>{collection.name}</em> from content.config
+            or its frontmatter.
+          </EmptyState>
         ) : (
           <>
-            <p className="ws-section-label">
-              Fields<span>{schema.fields.length}</span>
+            <p className="mb-3 flex items-center justify-between text-[0.68rem] font-black uppercase tracking-[0.08em] text-text-faint">
+              Fields <Badge variant="muted">{schema.fields.length}</Badge>
             </p>
 
-            <ul className="schema-field-list">
+            <ul className="m-0 grid list-none gap-2 p-0">
               {schema.fields.map((field) => (
                 <FieldCard field={field} key={field.name} />
               ))}
             </ul>
 
             {schema.warnings.length ? (
-              <div className="warning-list ws-warning-list">
+              <div className="mt-3 grid gap-1.5">
                 {schema.warnings.map((warning) => (
-                  <p key={warning}>{warning}</p>
+                  <p
+                    className="m-0 rounded-md border border-amber-300/18 bg-amber-300/9 px-2.5 py-2 text-[0.78rem] leading-5 text-amber-100/90"
+                    key={warning}
+                  >
+                    {warning}
+                  </p>
                 ))}
               </div>
             ) : null}
 
-            <p className="ws-inspector-note">
+            <p className="mt-4 text-[0.76rem] leading-5 text-text-faint">
               These fields become an editable form once the entry editor lands.
             </p>
           </>
@@ -101,23 +99,32 @@ export function SchemaInspector({
 function FieldCard({ field }: { field: FieldSchema }) {
   return (
     <li
-      className="schema-field-card"
+      className="grid gap-2 rounded-orbit border border-white/10 bg-white/[0.035] p-3 data-[unknown=true]:border-amber-300/25"
       data-unknown={field.fieldType === "unknown" ? "true" : undefined}
     >
-      <div className="schema-field-head">
-        <strong title={field.name}>{field.name}</strong>
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <strong className="truncate text-[0.82rem] font-black text-text-muted" title={field.name}>
+          {field.name}
+        </strong>
         {field.required ? (
-          <Asterisk aria-label="Required" className="schema-required" size={12} strokeWidth={3} />
+          <Asterisk
+            aria-label="Required"
+            className="shrink-0 text-accent-hover"
+            size={12}
+            strokeWidth={3}
+          />
         ) : null}
       </div>
-      <div className="schema-field-meta">
-        <span className="schema-type-pill">{field.fieldType}</span>
-        <span className="schema-field-requirement">{field.required ? "Required" : "Optional"}</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <Badge variant="neutral">{field.fieldType}</Badge>
+        <Badge variant={field.required ? "accent" : "muted"}>
+          {field.required ? "Required" : "Optional"}
+        </Badge>
         {field.fieldType === "unknown" ? (
-          <span className="schema-field-warning" title="Unsupported schema shape">
+          <Badge variant="warning" title="Unsupported schema shape">
             <AlertCircle aria-hidden="true" size={12} strokeWidth={2.4} />
             unsupported
-          </span>
+          </Badge>
         ) : null}
       </div>
     </li>
