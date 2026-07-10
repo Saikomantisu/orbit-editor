@@ -27,16 +27,34 @@ export type EntrySummary = {
   extension: EntryExtension;
 };
 
+export type SchemaSource = "contentConfig" | "frontmatterInference";
+
+export type FieldType = "string" | "number" | "boolean" | "date" | "array" | "image" | "unknown";
+
+export type FieldSchema = {
+  name: string;
+  fieldType: FieldType;
+  required: boolean;
+};
+
+export type CollectionSchema = {
+  source: SchemaSource;
+  fields: FieldSchema[];
+  warnings: string[];
+};
+
 export type CollectionSummary = {
   name: string;
   path: string;
   entries: EntrySummary[];
+  schema: CollectionSchema | null;
   warnings: string[];
 };
 
 export type CollectionScan = {
   projectPath: string;
   contentPath: string;
+  schemaConfigPath: string | null;
   collections: CollectionSummary[];
   warnings: string[];
 };

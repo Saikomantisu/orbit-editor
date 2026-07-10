@@ -18,6 +18,7 @@ const OUTSIDE_PROJECT_WARNING: &str =
 pub struct CollectionScan {
     pub project_path: String,
     pub content_path: String,
+    pub schema_config_path: Option<String>,
     pub collections: Vec<CollectionSummary>,
     pub warnings: Vec<String>,
 }
@@ -28,6 +29,7 @@ pub struct CollectionSummary {
     pub name: String,
     pub path: String,
     pub entries: Vec<EntrySummary>,
+    pub schema: Option<crate::schema::CollectionSchema>,
     pub warnings: Vec<String>,
 }
 
@@ -68,6 +70,7 @@ pub fn scan_collections(project_path: &str) -> Result<CollectionScan, String> {
         return Ok(CollectionScan {
             project_path: path_to_string(&project_path),
             content_path: path_to_string(&content_path),
+            schema_config_path: None,
             collections: Vec::new(),
             warnings,
         });
@@ -126,9 +129,27 @@ pub fn scan_collections(project_path: &str) -> Result<CollectionScan, String> {
             .then_with(|| left.name.cmp(&right.name))
     });
 
+    let schema_detection = crate::schema::detect_collection_schemas(&project_path, &collections);
+    warnings.extend(schema_detection.warnings);
+
+    for collection in &mut collections {
+        collection.schema = schema_detection
+            .schemas_by_collection
+            .get(&collection.name)
+            .cloned();
+
+        if let Some(schema) = &collection.schema {
+            collection.warnings.extend(schema.warnings.clone());
+        }
+    }
+
     Ok(CollectionScan {
         project_path: path_to_string(&project_path),
         content_path: path_to_string(&content_path),
+        schema_config_path: schema_detection
+            .config_path
+            .as_ref()
+            .map(|path| path_to_string(path)),
         collections,
         warnings,
     })
@@ -146,6 +167,7 @@ fn scan_collection_directory(
             .map(|path| path_to_string(&path))
             .unwrap_or_else(|_| path_to_string(collection_path)),
         entries: Vec::new(),
+        schema: None,
         warnings: Vec::new(),
     };
 
@@ -305,10 +327,13 @@ pub fn delete_entry(file_path: &str) -> Result<(), String> {
 mod tests {
     use super::*;
     use std::{
-        fs::{self, File},
+        fs,
         path::{Path, PathBuf},
+        sync::atomic::{AtomicUsize, Ordering},
         time::{SystemTime, UNIX_EPOCH},
     };
+
+    static TEST_PROJECT_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
     struct TestProject {
         path: PathBuf,
@@ -320,8 +345,9 @@ mod tests {
                 .duration_since(UNIX_EPOCH)
                 .expect("system clock should be after Unix epoch")
                 .as_nanos();
+            let counter = TEST_PROJECT_COUNTER.fetch_add(1, Ordering::Relaxed);
             let path = std::env::temp_dir().join(format!(
-                "orbit-editor-content-test-{}-{unique_id}",
+                "orbit-editor-content-test-{}-{counter}-{unique_id}",
                 std::process::id()
             ));
 
@@ -334,12 +360,16 @@ mod tests {
         }
 
         fn create_file(&self, path: &str) {
+            self.create_file_with_contents(path, "");
+        }
+
+        fn create_file_with_contents(&self, path: &str, contents: &str) {
             let file_path = self.path.join(path);
             if let Some(parent) = file_path.parent() {
                 fs::create_dir_all(parent).expect("test file parent should be created");
             }
 
-            File::create(file_path).expect("test file should be created");
+            fs::write(file_path, contents).expect("test file should be written");
         }
 
         fn scan(&self) -> CollectionScan {
@@ -475,6 +505,128 @@ mod tests {
             .map(|entry| entry.slug.as_str())
             .collect::<Vec<_>>();
         assert_eq!(zeta_entries, vec!["Alpha", "beta"]);
+    }
+
+    #[test]
+    fn attaches_config_schema_to_matching_collection() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/hello.md");
+        project.create_file_with_contents(
+            "content.config.ts",
+            r#"
+            const blog = defineCollection({
+              schema: z.object({
+                title: z.string(),
+                draft: z.boolean().optional(),
+              }),
+            });
+
+            export const collections = { blog };
+            "#,
+        );
+
+        let scan = project.scan();
+        let schema = scan.collections[0]
+            .schema
+            .as_ref()
+            .expect("schema should be detected");
+
+        assert_eq!(schema.source, crate::schema::SchemaSource::ContentConfig);
+        assert_eq!(schema.fields.len(), 2);
+        assert!(scan.schema_config_path.is_some());
+    }
+
+    #[test]
+    fn falls_back_to_inferred_frontmatter_when_no_config_exists() {
+        let project = TestProject::new();
+        project.create_file_with_contents(
+            "src/content/blog/hello.md",
+            r#"---
+title: Hello
+draft: false
+tags:
+  - astro
+date: 2026-07-10
+---
+
+Body
+"#,
+        );
+
+        let scan = project.scan();
+        let schema = scan.collections[0]
+            .schema
+            .as_ref()
+            .expect("schema should be inferred");
+
+        assert_eq!(
+            schema.source,
+            crate::schema::SchemaSource::FrontmatterInference
+        );
+        assert!(schema.fields.iter().any(|field| {
+            field.name == "title" && field.field_type == crate::schema::FieldType::String
+        }));
+        assert!(schema.fields.iter().any(|field| {
+            field.name == "draft" && field.field_type == crate::schema::FieldType::Boolean
+        }));
+        assert!(schema.fields.iter().any(|field| {
+            field.name == "tags" && field.field_type == crate::schema::FieldType::Array
+        }));
+        assert!(schema.fields.iter().any(|field| {
+            field.name == "date" && field.field_type == crate::schema::FieldType::Date
+        }));
+    }
+
+    #[test]
+    fn falls_back_to_frontmatter_when_config_schema_shape_is_unsupported() {
+        let project = TestProject::new();
+        project.create_file_with_contents(
+            "src/content/blog/hello.md",
+            r#"---
+title: Hello
+---
+
+Body
+"#,
+        );
+        project.create_file_with_contents(
+            "content.config.ts",
+            r#"
+            const schema = z.object({ title: z.string() });
+            const blog = defineCollection({ schema });
+            export const collections = { blog };
+            "#,
+        );
+
+        let scan = project.scan();
+        let schema = scan.collections[0]
+            .schema
+            .as_ref()
+            .expect("schema should be inferred");
+
+        assert_eq!(
+            schema.source,
+            crate::schema::SchemaSource::FrontmatterInference
+        );
+        assert!(scan
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("blog schema")));
+    }
+
+    #[test]
+    fn malformed_config_does_not_block_collection_detection() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/hello.md");
+        project.create_file_with_contents("content.config.ts", "export const collections =");
+
+        let scan = project.scan();
+
+        assert_eq!(scan.collections.len(), 1);
+        assert!(scan
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("collections object")));
     }
 
     #[test]

@@ -43,19 +43,19 @@ Orbit Editor v0.1 is complete when a user can:
 
 ## 3. Schema Detection
 
-- [ ] Read Astro content collection config files.
-- [ ] Detect basic schema fields.
-- [ ] Map schema fields to simple field types:
-  - [ ] `string`
-  - [ ] `number`
-  - [ ] `boolean`
-  - [ ] `date`
-  - [ ] `array`
-  - [ ] `image`
-  - [ ] `unknown`
-- [ ] Detect required fields where possible.
-- [ ] Fall back to inferred frontmatter fields when schema detection is limited.
-- [ ] Surface unsupported schema shapes clearly without blocking editing.
+- [x] Read Astro content collection config files.
+- [x] Detect basic schema fields.
+- [x] Map schema fields to simple field types:
+  - [x] `string`
+  - [x] `number`
+  - [x] `boolean`
+  - [x] `date`
+  - [x] `array`
+  - [x] `image`
+  - [x] `unknown`
+- [x] Detect required fields where possible.
+- [x] Fall back to inferred frontmatter fields when schema detection is limited.
+- [x] Surface unsupported schema shapes clearly without blocking editing.
 
 ## 4. Entry List
 
@@ -145,7 +145,7 @@ Orbit Editor v0.1 is complete when a user can:
 - [ ] Test opening a valid Astro project.
 - [ ] Test opening an invalid project.
 - [ ] Test collection detection.
-- [ ] Test schema detection fallback behavior.
+- [x] Test schema detection fallback behavior.
 - [ ] Test reading `.md` entries.
 - [ ] Test reading `.mdx` entries.
 - [ ] Test creating an entry.

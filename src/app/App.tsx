@@ -1,7 +1,6 @@
 import { type PointerEvent, useCallback, useEffect, useState } from "react";
-import { StatusBar } from "../components/StatusBar";
-import { CollectionBrowser } from "../features/collections/CollectionBrowser";
 import { ProjectPicker } from "../features/projects/ProjectPicker";
+import { ProjectWorkspace } from "../features/workspace/ProjectWorkspace";
 import {
   type CollectionScan,
   openProject,
@@ -215,9 +214,9 @@ export function App() {
         </div>
       </header>
 
-      <main className="workspace">
+      <main className="workspace" data-view={selectedProject ? "project" : "home"}>
         {selectedProject ? (
-          <CollectionBrowser
+          <ProjectWorkspace
             project={selectedProject}
             scan={collectionScan}
             isLoading={isScanningCollections}
@@ -238,8 +237,6 @@ export function App() {
           </div>
         )}
       </main>
-
-      <StatusBar project={selectedProject} />
     </div>
   );
 }

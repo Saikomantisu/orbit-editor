@@ -39,20 +39,22 @@ behaves. The visual tokens below are lifted directly from the current
 
 ## 2. Color Palette
 
-The palette is a warm-tinted near-black canvas with a single mint-green accent and
-two semantic status colors. Pulled directly from the current stylesheet.
+The palette is a cool deep-space near-black canvas with a single cosmic-periwinkle
+accent and two semantic status colors. Two soft nebula glows (violet top-left,
+stellar-blue bottom-right) give the window its "dark galaxy" depth. Pulled directly
+from the current stylesheet.
 
 ### Core surfaces & ink
 
 | Token                 | Value                     | Use |
 |-----------------------|---------------------------|-----|
-| `--bg-base`           | `#191a19`                 | Window base / deepest background |
-| `--bg-gradient-mid`   | `#101511`                 | Mid stop of the ambient background gradient |
-| `--bg-gradient-glow`  | `rgb(58 85 73 / 28%)`     | Soft radial glow, top-left corner only |
-| `--chrome-header-top` | `rgb(31 33 31 / 96%)`     | Top stop of the title/nav bar background |
-| `--chrome-header-bottom` | `rgb(25 26 25 / 94%)`  | Bottom stop of the title/nav bar background |
-| `--chrome-status`     | `rgb(25 26 25 / 72%)`     | Status bar background |
-| `--surface-panel`     | `rgb(12 15 14 / 78%)`     | Panels / cards over the base |
+| `--bg-base`           | `#0a0b16`                 | Window base / deepest background |
+| `--bg-gradient-mid`   | `#0c0e20`                 | Mid stop of the ambient background gradient |
+| `--bg-gradient-glow`  | `rgb(124 92 255 / 26%)`   | Violet nebula glow, top-left corner |
+| `--chrome-header-top` | `rgb(20 22 42 / 96%)`     | Top stop of the title/nav bar background |
+| `--chrome-header-bottom` | `rgb(13 15 30 / 94%)`  | Bottom stop of the title/nav bar background |
+| `--chrome-status`     | `rgb(13 15 30 / 72%)`     | Status bar background |
+| `--surface-panel`     | `rgb(14 16 34 / 78%)`     | Panels / cards over the base |
 | `--surface-raised`    | `rgb(255 255 255 / 5%)`   | Rows, pills, secondary buttons |
 | `--surface-raised-2`  | `rgb(255 255 255 / 4%)`   | Nested rows inside a panel |
 
@@ -60,31 +62,31 @@ two semantic status colors. Pulled directly from the current stylesheet.
 
 | Token             | Value       | Use |
 |-------------------|-------------|-----|
-| `--text-primary`  | `#f8fbf4`   | Headings, entry titles, primary values |
-| `--text-body`     | `#eff3ea`   | Default document ink (`:root`) |
-| `--text-muted`    | `#aab4a8`   | Body copy, descriptions |
-| `--text-subtle`   | `#899487`   | Paths, metadata, captions |
-| `--text-faint`    | `#6f796e`   | Least important labels / hints |
+| `--text-primary`  | `#f5f6ff`   | Headings, entry titles, primary values |
+| `--text-body`     | `#e7e9fb`   | Default document ink (`:root`) |
+| `--text-muted`    | `#a8adcf`   | Body copy, descriptions |
+| `--text-subtle`   | `#868bb2`   | Paths, metadata, captions |
+| `--text-faint`    | `#656a90`   | Least important labels / hints |
 
-### Accent (mint / signal green)
+### Accent (cosmic periwinkle)
 
 | Token                | Value                      | Use |
 |----------------------|----------------------------|-----|
-| `--accent`           | `#9df0b2`                  | Primary action, focus ring, brand mark, "valid" |
-| `--accent-hover`     | `#c5ffd1`                  | Primary button hover |
-| `--accent-ink`       | `#07100b`                  | Text/icon on top of a filled accent surface |
-| `--accent-soft`      | `rgb(157 240 178 / 9%)`    | Hover fill for accent-tinted rows |
-| `--accent-border`    | `rgb(157 240 178 / 40%)`   | Accent-tinted borders |
+| `--accent`           | `#9d8cff`                  | Primary action, focus ring, brand mark, "valid" |
+| `--accent-hover`     | `#c4b8ff`                  | Primary button hover |
+| `--accent-ink`       | `#0a0718`                  | Text/icon on top of a filled accent surface |
+| `--accent-soft`      | `rgb(157 140 255 / 10%)`   | Hover fill for accent-tinted rows |
+| `--accent-border`    | `rgb(157 140 255 / 42%)`   | Accent-tinted borders |
 
 ### Semantic status
 
 | Token           | Value                     | Use |
 |-----------------|---------------------------|-----|
-| `--danger`      | `#ff6f61`                 | Errors, failed checks, destructive actions |
-| `--danger-ink`  | `#ffd1ca`                 | Text inside error banners |
+| `--danger`      | `#ff6f8b`                 | Errors, failed checks, destructive actions |
+| `--danger-ink`  | `#ffd0dc`                 | Text inside error banners |
 | `--warning`     | `#f1bc53`                 | Warnings, non-blocking issues |
 | `--warning-ink` | `#f6d99a`                 | Text inside warning banners |
-| `--success`     | `#9df0b2`                 | Same as accent — passed checks, saved state |
+| `--success`     | `#9d8cff`                 | Same as accent — passed checks, saved state |
 
 ### Borders & lines
 
@@ -95,7 +97,7 @@ two semantic status colors. Pulled directly from the current stylesheet.
 | `--border-dashed` | `rgb(255 255 255 / 14%)`  | Empty-state / drop-zone outlines |
 
 **Rules**
-- Exactly **one** accent. Mint green means "primary / go / valid." Do not
+- Exactly **one** accent. Cosmic periwinkle means "primary / go / valid." Do not
   introduce a second accent hue for decoration.
 - Status colors (`--danger`, `--warning`) are reserved for status. Never use red
   or amber decoratively.

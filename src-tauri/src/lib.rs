@@ -3,6 +3,7 @@ mod content;
 mod markdown;
 mod preview;
 mod project;
+mod schema;
 
 pub fn run() {
     tauri::Builder::default()
