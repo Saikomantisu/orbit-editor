@@ -12,11 +12,7 @@ type StatusBarProps = {
  */
 export function StatusBar({ project }: StatusBarProps) {
   const state = project ? (project.isValid ? "ok" : "error") : "idle";
-  const label = project
-    ? project.isValid
-      ? "Ready to open"
-      : "Needs attention"
-    : "No project open";
+  const label = project ? (project.isValid ? "Ready" : "Needs attention") : "No project open";
 
   return (
     <footer className="status-bar">

@@ -26,6 +26,11 @@ pub fn scan_project(project_path: String) -> Result<crate::project::ProjectValid
 }
 
 #[tauri::command]
+pub fn scan_collections(project_path: String) -> Result<crate::content::CollectionScan, String> {
+    crate::content::scan_collections(&project_path)
+}
+
+#[tauri::command]
 pub fn read_collection(collection: String) -> Result<(), String> {
     crate::content::read_collection(&collection)
 }

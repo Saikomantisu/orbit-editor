@@ -33,13 +33,13 @@ Orbit Editor v0.1 is complete when a user can:
 
 ## 2. Collection Detection
 
-- [ ] Scan `src/content/` for collection folders.
-- [ ] Detect Markdown entries with `.md`.
-- [ ] Detect MDX entries with `.mdx`.
-- [ ] Build a collection list from discovered folders.
-- [ ] Display collection names in the UI.
-- [ ] Handle projects with no collections.
-- [ ] Handle unreadable or malformed content directories.
+- [x] Scan `src/content/` for collection folders.
+- [x] Detect Markdown entries with `.md`.
+- [x] Detect MDX entries with `.mdx`.
+- [x] Build a collection list from discovered folders.
+- [x] Display collection names in the UI.
+- [x] Handle projects with no collections.
+- [x] Handle unreadable or malformed content directories.
 
 ## 3. Schema Detection
 

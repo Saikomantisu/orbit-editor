@@ -10,6 +10,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::open_project,
             commands::scan_project,
+            commands::scan_collections,
             commands::read_collection,
             commands::read_entry,
             commands::save_entry,

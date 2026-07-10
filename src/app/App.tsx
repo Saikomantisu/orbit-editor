@@ -1,7 +1,15 @@
 import { type PointerEvent, useCallback, useEffect, useState } from "react";
 import { StatusBar } from "../components/StatusBar";
+import { CollectionBrowser } from "../features/collections/CollectionBrowser";
 import { ProjectPicker } from "../features/projects/ProjectPicker";
-import { openProject, type ProjectValidation, scanProject, startWindowDrag } from "../lib/tauri";
+import {
+  type CollectionScan,
+  openProject,
+  type ProjectValidation,
+  scanCollections,
+  scanProject,
+  startWindowDrag,
+} from "../lib/tauri";
 
 const recentProjectsKey = "orbit-editor.recent-projects";
 
@@ -48,6 +56,9 @@ export function App() {
   const [recentProjects, setRecentProjects] = useState<ProjectValidation[]>([]);
   const [isChoosing, setIsChoosing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [collectionScan, setCollectionScan] = useState<CollectionScan | null>(null);
+  const [isScanningCollections, setIsScanningCollections] = useState(false);
+  const [collectionErrorMessage, setCollectionErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setRecentProjects(loadRecentProjects());
@@ -69,6 +80,21 @@ export function App() {
     });
   }, []);
 
+  const loadCollections = useCallback(async (project: ProjectValidation) => {
+    setIsScanningCollections(true);
+    setCollectionErrorMessage(null);
+    setCollectionScan(null);
+
+    try {
+      const scan = await scanCollections(project.path);
+      setCollectionScan(scan);
+    } catch (error) {
+      setCollectionErrorMessage(getErrorMessage(error, "Could not scan content collections."));
+    } finally {
+      setIsScanningCollections(false);
+    }
+  }, []);
+
   const chooseProject = useCallback(async () => {
     setIsChoosing(true);
     setErrorMessage(null);
@@ -86,12 +112,13 @@ export function App() {
 
       setSelectedProject(project);
       rememberProject(project);
+      void loadCollections(project);
     } catch (error) {
       setErrorMessage(getErrorMessage(error, "Could not open project."));
     } finally {
       setIsChoosing(false);
     }
-  }, [rememberProject]);
+  }, [loadCollections, rememberProject]);
 
   const reopenProject = useCallback(
     async (projectPath: string) => {
@@ -114,13 +141,14 @@ export function App() {
 
         setSelectedProject(project);
         rememberProject(project);
+        void loadCollections(project);
       } catch (error) {
         setErrorMessage(getErrorMessage(error, "Could not reopen project."));
       } finally {
         setIsChoosing(false);
       }
     },
-    [rememberProject],
+    [loadCollections, rememberProject],
   );
 
   const removeRecentProject = useCallback((projectPath: string) => {
@@ -131,6 +159,22 @@ export function App() {
       saveRecentProjects(nextProjects);
       return nextProjects;
     });
+  }, []);
+
+  const retryCollectionScan = useCallback(() => {
+    if (!selectedProject) {
+      return;
+    }
+
+    void loadCollections(selectedProject);
+  }, [loadCollections, selectedProject]);
+
+  const returnHome = useCallback(() => {
+    setSelectedProject(null);
+    setCollectionScan(null);
+    setCollectionErrorMessage(null);
+    setIsScanningCollections(false);
+    setErrorMessage(null);
   }, []);
 
   const handleHeaderPointerDown = useCallback((event: PointerEvent<HTMLElement>) => {
@@ -172,16 +216,27 @@ export function App() {
       </header>
 
       <main className="workspace">
-        <div className="project-selection">
-          <ProjectPicker
-            recentProjects={recentProjects}
-            isChoosing={isChoosing}
-            errorMessage={errorMessage}
-            onChoose={chooseProject}
-            onReopen={reopenProject}
-            onRemoveRecent={removeRecentProject}
+        {selectedProject ? (
+          <CollectionBrowser
+            project={selectedProject}
+            scan={collectionScan}
+            isLoading={isScanningCollections}
+            errorMessage={collectionErrorMessage}
+            onRetry={retryCollectionScan}
+            onBackHome={returnHome}
           />
-        </div>
+        ) : (
+          <div className="project-selection">
+            <ProjectPicker
+              recentProjects={recentProjects}
+              isChoosing={isChoosing}
+              errorMessage={errorMessage}
+              onChoose={chooseProject}
+              onReopen={reopenProject}
+              onRemoveRecent={removeRecentProject}
+            />
+          </div>
+        )}
       </main>
 
       <StatusBar project={selectedProject} />
