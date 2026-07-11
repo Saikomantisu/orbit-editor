@@ -27,6 +27,9 @@
       }
     ],
     "security": {
+      "assetProtocol": {
+        "enable": true
+      },
       "csp": null
     }
   },

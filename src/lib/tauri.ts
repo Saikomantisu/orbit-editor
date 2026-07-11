@@ -37,7 +37,9 @@ export type FieldType = "string" | "number" | "boolean" | "date" | "array" | "im
 export type FieldSchema = {
   name: string;
   fieldType: FieldType;
+  itemType?: FieldType;
   required: boolean;
+  options: string[];
 };
 
 export type CollectionSchema = {
@@ -81,8 +83,37 @@ export type DeleteEntryInput = {
   filePath: string;
 };
 
+export type FrontmatterValue =
+  | null
+  | string
+  | number
+  | boolean
+  | FrontmatterValue[]
+  | { [key: string]: FrontmatterValue };
+
+export type Entry = {
+  id: string;
+  slug: string;
+  filePath: string;
+  extension: EntryExtension;
+  frontmatter: Record<string, FrontmatterValue>;
+  body: string;
+  lastModified: string | null;
+};
+
+export type SaveEntryInput = {
+  projectPath: string;
+  filePath: string;
+  frontmatter: Record<string, FrontmatterValue>;
+  body: string;
+};
+
 export function openProject() {
   return invoke<ProjectValidation | null>("open_project");
+}
+
+export function pickProjectImage(projectPath: string, currentImagePath?: string) {
+  return invoke<string | null>("pick_project_image", { projectPath, currentImagePath });
 }
 
 export function scanProject(projectPath: string) {
@@ -103,6 +134,14 @@ export function duplicateEntry(input: DuplicateEntryInput) {
 
 export function deleteEntry(input: DeleteEntryInput) {
   return invoke<void>("delete_entry", { input });
+}
+
+export function readEntry(projectPath: string, filePath: string) {
+  return invoke<Entry>("read_entry", { projectPath, filePath });
+}
+
+export function saveEntry(input: SaveEntryInput) {
+  return invoke<Entry>("save_entry", { input });
 }
 
 export function startWindowDrag() {

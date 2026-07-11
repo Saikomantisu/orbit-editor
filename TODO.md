@@ -73,17 +73,17 @@ Orbit Editor v0.1 is complete when a user can:
 
 ## 5. Visual Frontmatter Editor
 
-- [ ] Generate frontmatter form fields from schema or inferred data.
-- [ ] Support text input fields.
-- [ ] Support textarea fields.
-- [ ] Support date fields.
-- [ ] Support checkbox fields.
-- [ ] Support dropdown fields where options are known.
-- [ ] Support tag or array fields.
-- [ ] Support image picker fields.
-- [ ] Support number fields.
-- [ ] Display validation errors next to affected fields.
-- [ ] Preserve unknown frontmatter fields.
+- [x] Generate frontmatter form fields from schema or inferred data.
+- [x] Support text input fields.
+- [x] Support textarea fields.
+- [x] Support date fields.
+- [x] Support checkbox fields.
+- [x] Support dropdown fields where options are known.
+- [x] Support tag or array fields.
+- [x] Support image picker fields.
+- [x] Support number fields.
+- [x] Display validation errors next to affected fields.
+- [x] Preserve unknown frontmatter fields.
 
 ## 6. Markdown Editor
 

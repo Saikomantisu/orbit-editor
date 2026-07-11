@@ -1,3 +1,4 @@
+use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 #[tauri::command]
@@ -17,12 +18,77 @@ pub async fn open_project(
         .into_path()
         .map_err(|_| "Could not read the selected folder path.".to_string())?;
 
+    allow_project_asset_previews(&app, &path)?;
+
     crate::project::scan_project_path(&path).map(Some)
 }
 
 #[tauri::command]
-pub fn scan_project(project_path: String) -> Result<crate::project::ProjectValidation, String> {
-    crate::project::scan_project(&project_path)
+pub async fn pick_project_image(
+    app: tauri::AppHandle,
+    project_path: String,
+    current_image_path: Option<String>,
+) -> Result<Option<String>, String> {
+    let project_path = std::path::Path::new(&project_path)
+        .canonicalize()
+        .map_err(|_| "The selected project folder does not exist or cannot be read.".to_string())?;
+
+    if !project_path.is_dir() {
+        return Err("Choose an Astro project folder before selecting an image.".to_string());
+    }
+
+    allow_project_asset_previews(&app, &project_path)?;
+
+    let mut dialog = app.dialog().file().set_title("Choose Image").add_filter(
+        "Images",
+        &["png", "jpg", "jpeg", "webp", "gif", "svg", "avif"],
+    );
+
+    if let Some(current_image_path) = current_image_path.as_deref() {
+        if let Some((directory, file_name)) = image_dialog_start(&project_path, current_image_path)
+        {
+            dialog = dialog.set_directory(directory);
+            if let Some(file_name) = file_name {
+                dialog = dialog.set_file_name(file_name);
+            }
+        }
+    } else {
+        dialog = dialog.set_directory(&project_path);
+    }
+
+    let Some(file_path) = dialog.blocking_pick_file() else {
+        return Ok(None);
+    };
+
+    let image_path = file_path
+        .into_path()
+        .map_err(|_| "Could not read the selected image path.".to_string())?
+        .canonicalize()
+        .map_err(|_| "Could not read the selected image file.".to_string())?;
+
+    if !image_path.starts_with(&project_path) {
+        return Err("Choose an image inside the selected Astro project. Copying external assets will be handled by the Assets workflow.".to_string());
+    }
+
+    let relative_path = image_path
+        .strip_prefix(&project_path)
+        .map_err(|_| "Could not create a project-relative image path.".to_string())?
+        .components()
+        .filter_map(|component| component.as_os_str().to_str())
+        .collect::<Vec<_>>()
+        .join("/");
+
+    Ok(Some(relative_path))
+}
+
+#[tauri::command]
+pub fn scan_project(
+    app: tauri::AppHandle,
+    project_path: String,
+) -> Result<crate::project::ProjectValidation, String> {
+    let validation = crate::project::scan_project(&project_path)?;
+    allow_project_asset_previews(&app, std::path::Path::new(&validation.path))?;
+    Ok(validation)
 }
 
 #[tauri::command]
@@ -36,8 +102,11 @@ pub fn read_collection(collection: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn read_entry(file_path: String) -> Result<(), String> {
-    crate::content::read_entry(&file_path)
+pub fn read_entry(
+    project_path: String,
+    file_path: String,
+) -> Result<crate::content::Entry, String> {
+    crate::content::read_entry_file(&project_path, &file_path)
 }
 
 #[tauri::command]
@@ -55,12 +124,8 @@ pub fn duplicate_entry(
 }
 
 #[tauri::command]
-pub fn save_entry(
-    file_path: String,
-    frontmatter: serde_json::Value,
-    body: String,
-) -> Result<(), String> {
-    crate::markdown::save_entry(&file_path, frontmatter, &body)
+pub fn save_entry(input: crate::content::SaveEntryInput) -> Result<crate::content::Entry, String> {
+    crate::content::save_entry(input)
 }
 
 #[tauri::command]
@@ -76,4 +141,58 @@ pub fn start_dev_server(project_path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn stop_dev_server() -> Result<(), String> {
     crate::preview::stop_dev_server()
+}
+
+fn allow_project_asset_previews(
+    app: &tauri::AppHandle,
+    project_path: &std::path::Path,
+) -> Result<(), String> {
+    let project_path = project_path
+        .canonicalize()
+        .map_err(|_| "The selected project folder does not exist or cannot be read.".to_string())?;
+
+    app.asset_protocol_scope()
+        .allow_directory(&project_path, true)
+        .map_err(|_| "Could not allow image previews for the selected project.".to_string())
+}
+
+fn image_dialog_start(
+    project_path: &std::path::Path,
+    image_path: &str,
+) -> Option<(std::path::PathBuf, Option<String>)> {
+    let image_path = image_path.trim();
+    if image_path.is_empty() || image_path.contains("://") {
+        return Some((project_path.to_path_buf(), None));
+    }
+
+    let candidate = if image_path.starts_with('/') {
+        project_path
+            .join("public")
+            .join(image_path.trim_start_matches('/'))
+    } else {
+        let path = std::path::Path::new(image_path);
+        if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            project_path.join(path)
+        }
+    };
+
+    let candidate = candidate.canonicalize().unwrap_or(candidate);
+    let start_directory = if candidate.is_dir() {
+        candidate.clone()
+    } else {
+        candidate
+            .parent()
+            .filter(|parent| parent.starts_with(project_path))
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_else(|| project_path.to_path_buf())
+    };
+
+    let file_name = candidate
+        .file_name()
+        .and_then(|file_name| file_name.to_str())
+        .map(str::to_string);
+
+    Some((start_directory, file_name))
 }

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use std::{
     fs,
     path::{Component, Path, PathBuf},
@@ -47,6 +48,18 @@ pub struct EntrySummary {
     pub draft: Option<bool>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Entry {
+    pub id: String,
+    pub slug: String,
+    pub file_path: String,
+    pub extension: EntryExtension,
+    pub frontmatter: Value,
+    pub body: String,
+    pub last_modified: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EntryExtension {
@@ -77,6 +90,15 @@ pub struct DuplicateEntryInput {
 pub struct DeleteEntryInput {
     pub project_path: String,
     pub file_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveEntryInput {
+    pub project_path: String,
+    pub file_path: String,
+    pub frontmatter: Value,
+    pub body: String,
 }
 
 pub fn scan_collections(project_path: &str) -> Result<CollectionScan, String> {
@@ -330,6 +352,13 @@ fn push_unique_warning(warnings: &mut Vec<String>, warning: &str) {
 
 fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().to_string()
+}
+
+fn display_project_path(project_path: &Path, path: &Path) -> String {
+    path.strip_prefix(project_path)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .to_string()
 }
 
 fn entry_summary(collection_root: &Path, file_path: &Path) -> Result<EntrySummary, String> {
@@ -650,12 +679,45 @@ pub fn read_collection(collection: &str) -> Result<(), String> {
     Err("Collection reading is not implemented yet.".to_string())
 }
 
-pub fn read_entry(file_path: &str) -> Result<(), String> {
-    if file_path.trim().is_empty() {
-        return Err("Choose an entry before reading it.".to_string());
+pub fn read_entry_file(project_path: &str, file_path: &str) -> Result<Entry, String> {
+    let project_path = canonical_project_path(project_path)?;
+    let (entry_path, collection_path, extension) =
+        validate_entry_file_path(&project_path, file_path)?;
+    let contents = fs::read_to_string(&entry_path)
+        .map_err(|_| "Could not read the entry file. Check that it still exists.".to_string())?;
+    let (frontmatter, body) = parse_entry_contents(&project_path, &entry_path, &contents)?;
+    let slug = entry_slug(&collection_path, &entry_path)
+        .ok_or_else(|| "Could not determine the entry slug from its path.".to_string())?;
+
+    Ok(Entry {
+        id: slug.clone(),
+        slug,
+        file_path: path_to_string(&entry_path),
+        extension,
+        frontmatter,
+        body,
+        last_modified: entry_last_modified(&entry_path),
+    })
+}
+
+pub fn save_entry(input: SaveEntryInput) -> Result<Entry, String> {
+    let project_path = canonical_project_path(&input.project_path)?;
+    let (entry_path, _collection_path, _extension) =
+        validate_entry_file_path(&project_path, &input.file_path)?;
+
+    if !input.frontmatter.is_object() {
+        return Err("Frontmatter must be a YAML object before saving.".to_string());
     }
 
-    Err("Entry reading is not implemented yet.".to_string())
+    let yaml = serde_yaml::to_string(&input.frontmatter)
+        .map_err(|_| "Could not serialize frontmatter to YAML.".to_string())?;
+    let yaml = yaml.trim_end();
+    let contents = format!("---\n{yaml}\n---\n{}", input.body);
+
+    fs::write(&entry_path, contents)
+        .map_err(|_| "Could not save entry. Check project permissions.".to_string())?;
+
+    read_entry_file(&input.project_path, &input.file_path)
 }
 
 pub fn create_entry(input: CreateEntryInput) -> Result<EntrySummary, String> {
@@ -743,6 +805,117 @@ pub fn delete_entry(input: DeleteEntryInput) -> Result<(), String> {
 
     fs::remove_file(&target_path)
         .map_err(|_| "Could not delete entry. Check project permissions.".to_string())
+}
+
+fn validate_entry_file_path(
+    project_path: &Path,
+    file_path: &str,
+) -> Result<(PathBuf, PathBuf, EntryExtension), String> {
+    if file_path.trim().is_empty() {
+        return Err("Choose an entry before reading it.".to_string());
+    }
+
+    let entry_path = Path::new(file_path)
+        .canonicalize()
+        .map_err(|_| "Could not read the entry file. Check that it still exists.".to_string())?;
+    let canonical_content_path = content_path(project_path)
+        .canonicalize()
+        .map_err(|_| "src/content/ does not exist in the selected project.".to_string())?;
+
+    if !entry_path.starts_with(&canonical_content_path) {
+        return Err(
+            "Choose an entry inside the selected project's src/content/ folder.".to_string(),
+        );
+    }
+
+    if !entry_path.is_file() {
+        return Err("Choose a Markdown or MDX entry file.".to_string());
+    }
+
+    let Some(extension) = markdown_extension(&entry_path) else {
+        return Err("Choose a Markdown or MDX entry.".to_string());
+    };
+
+    let collection_path = source_collection_root(project_path, &entry_path)?;
+
+    Ok((entry_path, collection_path, extension))
+}
+
+fn parse_entry_contents(
+    project_path: &Path,
+    entry_path: &Path,
+    contents: &str,
+) -> Result<(Value, String), String> {
+    let Some(after_opening_marker) = contents.strip_prefix("---") else {
+        return Ok((Value::Object(Map::new()), contents.to_string()));
+    };
+
+    let Some(after_opening_newline) = after_opening_marker
+        .strip_prefix("\r\n")
+        .or_else(|| after_opening_marker.strip_prefix('\n'))
+    else {
+        return Ok((Value::Object(Map::new()), contents.to_string()));
+    };
+
+    let Some((frontmatter_source, body)) = split_frontmatter_body(after_opening_newline) else {
+        return Err(format!(
+            "Could not parse frontmatter in {}. Check that the YAML block is valid.",
+            display_project_path(project_path, entry_path)
+        ));
+    };
+
+    let parsed = serde_yaml::from_str::<Value>(frontmatter_source).map_err(|_| {
+        format!(
+            "Could not parse frontmatter in {}. Check that the YAML block is valid.",
+            display_project_path(project_path, entry_path)
+        )
+    })?;
+
+    let frontmatter = match parsed {
+        Value::Null => Value::Object(Map::new()),
+        value if value.is_object() => value,
+        _ => {
+            return Err(format!(
+                "Could not parse frontmatter in {}. The YAML block must be an object.",
+                display_project_path(project_path, entry_path)
+            ));
+        }
+    };
+
+    Ok((frontmatter, body.to_string()))
+}
+
+fn split_frontmatter_body(contents_after_opening: &str) -> Option<(&str, &str)> {
+    if let Some(body) = contents_after_opening.strip_prefix("---\r\n") {
+        return Some(("", body));
+    }
+
+    if let Some(body) = contents_after_opening.strip_prefix("---\n") {
+        return Some(("", body));
+    }
+
+    if contents_after_opening == "---" {
+        return Some(("", ""));
+    }
+
+    for marker in ["\n---\r\n", "\n---\n", "\r\n---\r\n", "\r\n---\n"] {
+        if let Some(index) = contents_after_opening.find(marker) {
+            let marker_len = marker.len();
+            return Some((
+                &contents_after_opening[..index],
+                &contents_after_opening[index + marker_len..],
+            ));
+        }
+    }
+
+    for marker in ["\n---", "\r\n---"] {
+        if contents_after_opening.ends_with(marker) {
+            let index = contents_after_opening.len() - marker.len();
+            return Some((&contents_after_opening[..index], ""));
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -1293,6 +1466,200 @@ Body
         .expect_err("non-markdown file should be refused");
 
         assert!(error.contains("Markdown and MDX"));
+    }
+
+    #[test]
+    fn reads_md_entry_frontmatter_and_body() {
+        let project = TestProject::new();
+        project.create_file_with_contents(
+            "src/content/blog/hello.md",
+            "---\ntitle: Hello\ndraft: false\ntags:\n  - astro\n---\n\nBody\n",
+        );
+        let file_path = project.path.join("src/content/blog/hello.md");
+
+        let entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect("entry should be read");
+
+        assert_eq!(entry.slug, "hello");
+        assert_eq!(entry.extension, EntryExtension::Md);
+        assert_eq!(entry.frontmatter["title"], "Hello");
+        assert_eq!(entry.frontmatter["draft"], false);
+        assert_eq!(entry.body, "\nBody\n");
+    }
+
+    #[test]
+    fn reads_mdx_entry_frontmatter_and_body() {
+        let project = TestProject::new();
+        project.create_file_with_contents(
+            "src/content/blog/hello.mdx",
+            "---\ntitle: Hello MDX\n---\n\n<Demo />\n",
+        );
+        let file_path = project.path.join("src/content/blog/hello.mdx");
+
+        let entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect("entry should be read");
+
+        assert_eq!(entry.extension, EntryExtension::Mdx);
+        assert_eq!(entry.frontmatter["title"], "Hello MDX");
+        assert_eq!(entry.body, "\n<Demo />\n");
+    }
+
+    #[test]
+    fn reads_entry_without_frontmatter_as_empty_object() {
+        let project = TestProject::new();
+        project.create_file_with_contents("src/content/blog/hello.md", "Body only");
+        let file_path = project.path.join("src/content/blog/hello.md");
+
+        let entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect("entry should be read");
+
+        assert_eq!(entry.frontmatter, serde_json::json!({}));
+        assert_eq!(entry.body, "Body only");
+    }
+
+    #[test]
+    fn reads_empty_frontmatter_as_empty_object() {
+        let project = TestProject::new();
+        project.create_file_with_contents("src/content/blog/hello.md", "---\n---\nBody");
+        let file_path = project.path.join("src/content/blog/hello.md");
+
+        let entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect("entry should be read");
+
+        assert_eq!(entry.frontmatter, serde_json::json!({}));
+        assert_eq!(entry.body, "Body");
+    }
+
+    #[test]
+    fn read_entry_rejects_malformed_frontmatter() {
+        let project = TestProject::new();
+        project.create_file_with_contents("src/content/blog/hello.md", "---\ntitle: [\n---\nBody");
+        let file_path = project.path.join("src/content/blog/hello.md");
+
+        let error = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect_err("malformed YAML should fail");
+
+        assert!(error.contains("Could not parse frontmatter"));
+    }
+
+    #[test]
+    fn read_entry_rejects_non_object_frontmatter() {
+        let project = TestProject::new();
+        project.create_file_with_contents("src/content/blog/hello.md", "---\n- title\n---\nBody");
+        let file_path = project.path.join("src/content/blog/hello.md");
+
+        let error = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect_err("non-object YAML should fail");
+
+        assert!(error.contains("must be an object"));
+    }
+
+    #[test]
+    fn read_entry_rejects_missing_non_markdown_and_outside_files() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/data.json");
+        project.create_file("README.md");
+
+        let missing = project.path.join("src/content/blog/missing.md");
+        let data = project.path.join("src/content/blog/data.json");
+        let outside = project.path.join("README.md");
+
+        assert!(read_entry_file(path_as_str(&project.path), "").is_err());
+        assert!(read_entry_file(path_as_str(&project.path), path_as_str(&missing)).is_err());
+        assert!(
+            read_entry_file(path_as_str(&project.path), path_as_str(&data))
+                .expect_err("non-markdown should fail")
+                .contains("Markdown or MDX")
+        );
+        assert!(
+            read_entry_file(path_as_str(&project.path), path_as_str(&outside))
+                .expect_err("outside file should fail")
+                .contains("src/content")
+        );
+    }
+
+    #[test]
+    fn save_entry_serializes_frontmatter_and_preserves_body() {
+        let project = TestProject::new();
+        project
+            .create_file_with_contents("src/content/blog/hello.md", "---\ntitle: Old\n---\n\nBody");
+        project.create_file_with_contents(
+            "src/content/blog/other.md",
+            "---\ntitle: Other\n---\n\nOther",
+        );
+        let file_path = project.path.join("src/content/blog/hello.md");
+
+        let saved = save_entry(SaveEntryInput {
+            project_path: path_as_str(&project.path).to_string(),
+            file_path: path_as_str(&file_path).to_string(),
+            frontmatter: serde_json::json!({
+                "title": "New",
+                "draft": false,
+                "views": 42,
+                "date": "2026-07-11",
+                "tags": ["astro", "editor"]
+            }),
+            body: "\nBody".to_string(),
+        })
+        .expect("entry should save");
+
+        let contents = fs::read_to_string(&file_path).expect("saved file should be readable");
+        let other = fs::read_to_string(project.path.join("src/content/blog/other.md"))
+            .expect("other file should be readable");
+
+        assert_eq!(saved.frontmatter["title"], "New");
+        assert!(contents.contains("title: New"));
+        assert!(contents.contains("draft: false"));
+        assert!(contents.ends_with("\nBody"));
+        assert_eq!(other, "---\ntitle: Other\n---\n\nOther");
+    }
+
+    #[test]
+    fn save_entry_preserves_mdx_body() {
+        let project = TestProject::new();
+        project.create_file_with_contents(
+            "src/content/blog/hello.mdx",
+            "---\ntitle: Old\n---\n\n<Demo />",
+        );
+        let file_path = project.path.join("src/content/blog/hello.mdx");
+
+        save_entry(SaveEntryInput {
+            project_path: path_as_str(&project.path).to_string(),
+            file_path: path_as_str(&file_path).to_string(),
+            frontmatter: serde_json::json!({ "title": "New" }),
+            body: "\n<Demo />".to_string(),
+        })
+        .expect("entry should save");
+
+        let contents = fs::read_to_string(file_path).expect("saved file should be readable");
+        assert!(contents.ends_with("\n<Demo />"));
+    }
+
+    #[test]
+    fn save_entry_rejects_invalid_targets_and_frontmatter() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/hello.md");
+        project.create_file("README.md");
+        let file_path = project.path.join("src/content/blog/hello.md");
+        let outside = project.path.join("README.md");
+
+        let error = save_entry(SaveEntryInput {
+            project_path: path_as_str(&project.path).to_string(),
+            file_path: path_as_str(&file_path).to_string(),
+            frontmatter: serde_json::json!(["title"]),
+            body: String::new(),
+        })
+        .expect_err("non-object frontmatter should fail");
+        assert!(error.contains("must be a YAML object"));
+
+        let error = save_entry(SaveEntryInput {
+            project_path: path_as_str(&project.path).to_string(),
+            file_path: path_as_str(&outside).to_string(),
+            frontmatter: serde_json::json!({}),
+            body: String::new(),
+        })
+        .expect_err("outside file should fail");
+        assert!(error.contains("src/content"));
     }
 
     fn path_as_str(path: &Path) -> &str {

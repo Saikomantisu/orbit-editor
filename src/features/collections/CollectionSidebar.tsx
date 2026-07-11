@@ -1,11 +1,4 @@
-import {
-  AlertCircle,
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  Folder,
-  RefreshCw,
-} from "lucide-react";
+import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, Folder, RefreshCw } from "lucide-react";
 import { capitalizeFirst } from "../../lib/format";
 import type { CollectionScan, CollectionSummary } from "../../lib/tauri";
 import { Badge } from "../../ui/Badge";
@@ -55,11 +48,7 @@ export function CollectionSidebar({
         className="flex w-12 shrink-0 justify-center border-r border-white/10 bg-surface-panel p-2"
         aria-label="Collections and entries"
       >
-        <IconButton
-          label="Expand sidebar"
-          tooltip="Expand sidebar"
-          onClick={onToggleCollapsed}
-        >
+        <IconButton label="Expand sidebar" tooltip="Expand sidebar" onClick={onToggleCollapsed}>
           <ChevronRight aria-hidden="true" size={16} strokeWidth={2.2} />
         </IconButton>
       </aside>
@@ -68,16 +57,11 @@ export function CollectionSidebar({
 
   return (
     <aside
-      className="flex w-[300px] min-w-0 shrink-0 flex-col border-r border-white/10 bg-surface-panel"
+      className="flex h-full min-h-0 w-[300px] min-w-0 shrink-0 flex-col overflow-hidden border-r border-white/10 bg-surface-panel"
       aria-label="Collections and entries"
     >
       <header className="flex min-h-12 items-center gap-2 border-b border-white/10 px-3">
-        <Button
-          className="px-2.5"
-          size="sm"
-          variant="ghost"
-          onClick={onBackHome}
-        >
+        <Button className="px-2.5" size="sm" variant="ghost" onClick={onBackHome}>
           <ArrowLeft aria-hidden="true" size={15} strokeWidth={2.4} />
           <span className="text-sm">Home</span>
         </Button>
@@ -98,20 +82,14 @@ export function CollectionSidebar({
           />
         </IconButton>
 
-        <IconButton
-          label="Collapse sidebar"
-          tooltip="Collapse sidebar"
-          onClick={onToggleCollapsed}
-        >
+        <IconButton label="Collapse sidebar" tooltip="Collapse sidebar" onClick={onToggleCollapsed}>
           <ChevronLeft aria-hidden="true" size={16} strokeWidth={2.2} />
         </IconButton>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {isLoading ? (
-          <p className="m-0 text-[0.82rem] font-bold text-text-faint">
-            Scanning collections...
-          </p>
+          <p className="m-0 text-[0.82rem] font-bold text-text-faint">Scanning collections...</p>
         ) : null}
 
         {!isLoading && errorMessage ? (
@@ -159,15 +137,13 @@ function CollectionList({
   const collections = scan?.collections ?? [];
 
   return (
-    <>
+    <div>
       {collections.length === 0 ? (
         <EmptyState
           icon={<Folder aria-hidden="true" size={20} strokeWidth={2.1} />}
           title="No collections found"
         >
-          {scan ? (
-            <span title={scan.contentPath}>{scan.contentPath}</span>
-          ) : null}
+          {scan ? <span title={scan.contentPath}>{scan.contentPath}</span> : null}
         </EmptyState>
       ) : (
         <ul className="m-0 grid list-none gap-1.5 p-0">
@@ -192,10 +168,7 @@ function CollectionList({
                     {capitalizeFirst(collection.name)}
                   </strong>
                 </span>
-                <Badge
-                  variant="muted"
-                  title={entryCountLabel(collection.entries.length)}
-                >
+                <Badge variant="muted" title={entryCountLabel(collection.entries.length)}>
                   {collection.entries.length}
                 </Badge>
                 <ChevronRight
@@ -209,7 +182,7 @@ function CollectionList({
           ))}
         </ul>
       )}
-    </>
+    </div>
   );
 }
 

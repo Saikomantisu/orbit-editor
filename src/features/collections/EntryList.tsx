@@ -1,18 +1,6 @@
-import {
-  ChevronLeft,
-  Copy,
-  FileCode2,
-  FileText,
-  MoreHorizontal,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { ChevronLeft, Copy, FileCode2, FileText, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import {
-  capitalizeFirst,
-  formatEntryModified,
-  toTitleCase,
-} from "../../lib/format";
+import { capitalizeFirst, formatEntryModified, toTitleCase } from "../../lib/format";
 import {
   type CollectionSummary,
   createEntry,
@@ -71,11 +59,7 @@ export function EntryList({
     onSelectEntry(entry.id);
   }
 
-  async function handleCreate(
-    title: string,
-    slug: string,
-    extension: EntryExtension,
-  ) {
+  async function handleCreate(title: string, slug: string, extension: EntryExtension) {
     setIsWorking(true);
     setActionError(null);
 
@@ -134,7 +118,7 @@ export function EntryList({
   }
 
   return (
-    <>
+    <div>
       <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2.5">
         <button
           className="inline-flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-transparent py-1 pr-1 text-left font-black text-accent transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/45"
@@ -142,20 +126,12 @@ export function EntryList({
           onClick={onBackToCollections}
           title="Back to collections"
         >
-          <ChevronLeft
-            aria-hidden="true"
-            className="shrink-0"
-            size={15}
-            strokeWidth={2.4}
-          />
+          <ChevronLeft aria-hidden="true" className="shrink-0" size={15} strokeWidth={2.4} />
           <span className="truncate text-sm" title={collection.name}>
             {capitalizeFirst(collection.name)}
           </span>
         </button>
-        <Badge
-          variant="muted"
-          title={entryCountLabel(collection.entries.length)}
-        >
+        <Badge variant="muted" title={entryCountLabel(collection.entries.length)}>
           {collection.entries.length}
         </Badge>
         <IconButton
@@ -197,11 +173,7 @@ export function EntryList({
           icon={<FileText aria-hidden="true" size={20} strokeWidth={2.1} />}
           title="No entries yet"
           action={
-            <Button
-              size="sm"
-              variant="soft"
-              onClick={() => setDialog({ type: "create" })}
-            >
+            <Button size="sm" variant="soft" onClick={() => setDialog({ type: "create" })}>
               <Plus aria-hidden="true" size={14} strokeWidth={2.4} />
               Create entry
             </Button>
@@ -265,7 +237,7 @@ export function EntryList({
           onAction={() => handleDelete(dialog.entry)}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -310,10 +282,7 @@ function EntryRow({
           >
             {displayTitle}
           </strong>
-          <small
-            className="truncate text-[0.72rem] font-bold text-text-faint"
-            title={entry.slug}
-          >
+          <small className="truncate text-[0.72rem] font-bold text-text-faint" title={entry.slug}>
             {entry.slug}
           </small>
           <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-[0.68rem] font-bold text-text-faint">
@@ -321,12 +290,8 @@ function EntryRow({
             <Badge variant={entry.extension === "mdx" ? "accent" : "neutral"}>
               {entry.extension.toUpperCase()}
             </Badge>
-            {entry.draft === true ? (
-              <Badge variant="warning">Draft</Badge>
-            ) : null}
-            {entry.draft === false ? (
-              <Badge variant="success">Ready</Badge>
-            ) : null}
+            {entry.draft === true ? <Badge variant="warning">Draft</Badge> : null}
+            {entry.draft === false ? <Badge variant="success">Ready</Badge> : null}
           </span>
         </span>
       </button>
@@ -450,9 +415,7 @@ function DuplicateEntryDialog({
   onCancel: () => void;
   onDuplicate: (newSlug: string) => void;
 }) {
-  const [newSlug, setNewSlug] = useState(() =>
-    nextCopySlug(entry.slug, existingSlugs),
-  );
+  const [newSlug, setNewSlug] = useState(() => nextCopySlug(entry.slug, existingSlugs));
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -475,9 +438,7 @@ function DuplicateEntryDialog({
       }}
     >
       <form className="grid gap-3" onSubmit={handleSubmit}>
-        <p className="m-0 text-[0.82rem] leading-5 text-text-subtle">
-          {entryDisplayTitle(entry)}
-        </p>
+        <p className="m-0 text-[0.82rem] leading-5 text-text-subtle">{entryDisplayTitle(entry)}</p>
         <TextField
           label="New slug"
           value={newSlug}
@@ -507,20 +468,10 @@ function DialogActions({
 }) {
   return (
     <div className="flex justify-end gap-2">
-      <Button
-        disabled={isWorking}
-        size="sm"
-        variant="secondary"
-        onClick={onCancel}
-      >
+      <Button disabled={isWorking} size="sm" variant="secondary" onClick={onCancel}>
         Cancel
       </Button>
-      <Button
-        disabled={isWorking || isDisabled}
-        size="sm"
-        type="submit"
-        variant="primary"
-      >
+      <Button disabled={isWorking || isDisabled} size="sm" type="submit" variant="primary">
         {isWorking ? "Working..." : confirmLabel}
       </Button>
     </div>

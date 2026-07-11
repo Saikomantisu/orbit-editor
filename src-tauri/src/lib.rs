@@ -1,6 +1,5 @@
 mod commands;
 mod content;
-mod markdown;
 mod preview;
 mod project;
 mod schema;
@@ -10,6 +9,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::open_project,
+            commands::pick_project_image,
             commands::scan_project,
             commands::scan_collections,
             commands::read_collection,

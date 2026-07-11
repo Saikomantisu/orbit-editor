@@ -1,8 +1,7 @@
 import { useState } from "react";
 import type { CollectionScan, ProjectValidation } from "../../lib/tauri";
 import { CollectionSidebar } from "../collections/CollectionSidebar";
-import { SchemaInspector } from "../collections/SchemaInspector";
-import { EntryEditorPlaceholder } from "../editor/EntryEditorPlaceholder";
+import { EntryEditor } from "../editor/EntryEditor";
 
 type ProjectWorkspaceProps = {
   project: ProjectValidation;
@@ -32,7 +31,6 @@ export function ProjectWorkspace({
   const [selectedCollectionName, setSelectedCollectionName] = useState<string | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [inspectorOpen, setInspectorOpen] = useState(true);
 
   const collections = scan?.collections ?? [];
   const selectedCollection =
@@ -51,7 +49,7 @@ export function ProjectWorkspace({
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] bg-bg-base">
+    <div className="grid h-full min-h-0 overflow-hidden grid-cols-[auto_minmax(0,1fr)] bg-bg-base">
       <CollectionSidebar
         projectPath={project.path}
         scan={scan}
@@ -70,12 +68,11 @@ export function ProjectWorkspace({
         onRefreshCollections={onRetry}
       />
 
-      <EntryEditorPlaceholder collection={selectedCollection} entry={selectedEntry} />
-
-      <SchemaInspector
+      <EntryEditor
+        projectPath={project.path}
         collection={selectedCollection}
-        isCollapsed={!inspectorOpen}
-        onToggleCollapsed={() => setInspectorOpen((open) => !open)}
+        entry={selectedEntry}
+        onSaved={onRetry}
       />
     </div>
   );

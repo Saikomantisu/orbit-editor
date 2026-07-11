@@ -29,7 +29,10 @@ pub enum SchemaSource {
 pub struct FieldSchema {
     pub name: String,
     pub field_type: FieldType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item_type: Option<FieldType>,
     pub required: bool,
+    pub options: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
@@ -276,7 +279,7 @@ fn parse_collection_schema(
     let schema_expression = find_object_property_value(collection_config, "schema")?;
     let schema_expression = schema_expression.trim();
 
-    if schema_expression.contains("=>") || !schema_expression.contains("z.object") {
+    if !schema_expression.contains("z.object") {
         return None;
     }
 
@@ -289,6 +292,7 @@ fn parse_collection_schema(
             continue;
         };
 
+        let options = detect_field_options(expression);
         let field_type = detect_field_type(expression);
         if field_type == FieldType::Unknown {
             warnings.push(format!(
@@ -299,15 +303,15 @@ fn parse_collection_schema(
         fields.push(FieldSchema {
             name: field_name.to_string(),
             field_type,
+            item_type: detect_array_item_type(expression),
             required: !is_optional_expression(expression),
+            options,
         });
     }
 
     if fields.is_empty() {
         return None;
     }
-
-    fields.sort_by(|left, right| left.name.cmp(&right.name));
 
     Some(CollectionSchema {
         source: SchemaSource::ContentConfig,
@@ -339,7 +343,11 @@ fn extract_z_object_body(expression: &str) -> Option<&str> {
 fn detect_field_type(expression: &str) -> FieldType {
     let compact = expression.split_whitespace().collect::<String>();
 
-    if compact.contains("z.array(") || compact.contains(".array(") {
+    if compact.contains("z.record(") {
+        FieldType::Unknown
+    } else if !detect_field_options(expression).is_empty() {
+        FieldType::String
+    } else if compact.contains("z.array(") || compact.contains(".array(") {
         FieldType::Array
     } else if compact.contains("image(") {
         FieldType::Image
@@ -358,6 +366,86 @@ fn detect_field_type(expression: &str) -> FieldType {
     } else {
         FieldType::Unknown
     }
+}
+
+fn detect_array_item_type(expression: &str) -> Option<FieldType> {
+    let compact = expression.split_whitespace().collect::<String>();
+
+    if let Some(array_index) = compact.find("z.array(") {
+        let open_paren = find_next_byte(&compact, array_index, b'(')?;
+        let close_paren = find_matching_delimiter(&compact, open_paren, b'(', b')')?;
+        return Some(detect_field_type(&compact[open_paren + 1..close_paren]));
+    }
+
+    if let Some(array_index) = compact.find(".array(") {
+        return Some(detect_field_type(&compact[..array_index]));
+    }
+
+    None
+}
+
+fn detect_field_options(expression: &str) -> Vec<String> {
+    detect_enum_options(expression)
+        .or_else(|| detect_union_literal_options(expression))
+        .unwrap_or_default()
+}
+
+fn detect_enum_options(expression: &str) -> Option<Vec<String>> {
+    let compact = expression.split_whitespace().collect::<String>();
+    let enum_index = compact.find("z.enum(")?;
+    let open_bracket = find_next_byte(&compact, enum_index, b'[')?;
+    let close_bracket = find_matching_delimiter(&compact, open_bracket, b'[', b']')?;
+
+    parse_string_list(&compact[open_bracket + 1..close_bracket])
+}
+
+fn detect_union_literal_options(expression: &str) -> Option<Vec<String>> {
+    let compact = expression.split_whitespace().collect::<String>();
+    let union_index = compact.find("z.union(")?;
+    let open_bracket = find_next_byte(&compact, union_index, b'[')?;
+    let close_bracket = find_matching_delimiter(&compact, open_bracket, b'[', b']')?;
+    let items = split_top_level_properties(&compact[open_bracket + 1..close_bracket]);
+    let mut options = Vec::new();
+
+    for item in items {
+        let literal_index = item.find("z.literal(")?;
+        let open_paren = find_next_byte(item, literal_index, b'(')?;
+        let close_paren = find_matching_delimiter(item, open_paren, b'(', b')')?;
+        let value = parse_quoted_string(item[open_paren + 1..close_paren].trim())?;
+        options.push(value);
+    }
+
+    (!options.is_empty()).then_some(options)
+}
+
+fn parse_string_list(source: &str) -> Option<Vec<String>> {
+    let mut options = Vec::new();
+
+    for item in split_top_level_properties(source) {
+        options.push(parse_quoted_string(item.trim())?);
+    }
+
+    (!options.is_empty()).then_some(options)
+}
+
+fn parse_quoted_string(source: &str) -> Option<String> {
+    let source = source.trim();
+    if source.len() < 2 {
+        return None;
+    }
+
+    let quote = source.as_bytes()[0];
+    if !matches!(quote, b'\'' | b'"') || source.as_bytes().last() != Some(&quote) {
+        return None;
+    }
+
+    let inner = &source[1..source.len() - 1];
+    Some(
+        inner
+            .replace("\\\"", "\"")
+            .replace("\\'", "'")
+            .replace("\\\\", "\\"),
+    )
 }
 
 fn is_optional_expression(expression: &str) -> bool {
@@ -406,7 +494,9 @@ fn infer_schema_from_frontmatter(collection: &CollectionSummary) -> Option<Colle
         .map(|(name, stats)| FieldSchema {
             name,
             field_type: stats.field_type,
+            item_type: None,
             required: stats.count == files_read,
+            options: Vec::new(),
         })
         .collect::<Vec<_>>();
 
@@ -903,6 +993,7 @@ mod tests {
                 tags: z.array(z.string()),
                 categories: z.string().array(),
                 cover: image(),
+                gallery: z.array(image()),
               }),
             });
             export const collections = { blog };
@@ -921,6 +1012,14 @@ mod tests {
                 .expect("field should exist")
                 .field_type
         };
+        let item_type = |name: &str| {
+            schema
+                .fields
+                .iter()
+                .find(|field| field.name == name)
+                .expect("field should exist")
+                .item_type
+        };
 
         assert_eq!(field("title"), FieldType::String);
         assert_eq!(field("website"), FieldType::String);
@@ -935,6 +1034,90 @@ mod tests {
         assert_eq!(field("tags"), FieldType::Array);
         assert_eq!(field("categories"), FieldType::Array);
         assert_eq!(field("cover"), FieldType::Image);
+        assert_eq!(field("gallery"), FieldType::Array);
+        assert_eq!(item_type("tags"), Some(FieldType::String));
+        assert_eq!(item_type("categories"), Some(FieldType::String));
+        assert_eq!(item_type("gallery"), Some(FieldType::Image));
+    }
+
+    #[test]
+    fn preserves_config_schema_field_order() {
+        let parsed = parse_content_config(
+            r#"
+            const blog = defineCollection({
+              schema: z.object({
+                title: z.string(),
+                featured: z.boolean().default(false),
+                category: z.array(z.string()),
+                excerpt: z.string().max(120),
+                thumbnail: image(),
+                author: z.string(),
+                createdAt: z.date(),
+              }),
+            });
+            export const collections = { blog };
+            "#,
+        );
+
+        let schema = parsed
+            .schemas_by_collection
+            .get("blog")
+            .expect("schema should be parsed");
+        let field_names = schema
+            .fields
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            field_names,
+            vec![
+                "title",
+                "featured",
+                "category",
+                "excerpt",
+                "thumbnail",
+                "author",
+                "createdAt"
+            ]
+        );
+    }
+
+    #[test]
+    fn parses_astro_image_callback_schema() {
+        let parsed = parse_content_config(
+            r#"
+            const portfolio = defineCollection({
+              loader: glob({ pattern: "**/*.md", base: "./src/content/portfolio" }),
+              schema: ({ image }) =>
+                z.object({
+                  title: z.string(),
+                  thumbnail: image(),
+                  gallery: z.array(image()),
+                }),
+            });
+            export const collections = { portfolio };
+            "#,
+        );
+
+        let schema = parsed
+            .schemas_by_collection
+            .get("portfolio")
+            .expect("schema should be parsed");
+        let thumbnail = schema
+            .fields
+            .iter()
+            .find(|field| field.name == "thumbnail")
+            .expect("thumbnail field should exist");
+        let gallery = schema
+            .fields
+            .iter()
+            .find(|field| field.name == "gallery")
+            .expect("gallery field should exist");
+
+        assert_eq!(thumbnail.field_type, FieldType::Image);
+        assert_eq!(gallery.field_type, FieldType::Array);
+        assert_eq!(gallery.item_type, Some(FieldType::Image));
     }
 
     #[test]
@@ -978,7 +1161,7 @@ mod tests {
             r#"
             const blog = defineCollection({
               schema: z.object({
-                status: z.enum(["draft", "published"]),
+                metadata: z.record(z.string()),
               }),
             });
             export const collections = { blog };
@@ -991,7 +1174,51 @@ mod tests {
             .expect("schema should be parsed");
 
         assert_eq!(schema.fields[0].field_type, FieldType::Unknown);
-        assert!(schema.warnings[0].contains("blog.status"));
+        assert!(schema.warnings[0].contains("blog.metadata"));
+    }
+
+    #[test]
+    fn maps_enum_fields_to_string_options() {
+        let parsed = parse_content_config(
+            r#"
+            const blog = defineCollection({
+              schema: z.object({
+                status: z.enum(["draft", "published"]),
+              }),
+            });
+            export const collections = { blog };
+            "#,
+        );
+
+        let schema = parsed
+            .schemas_by_collection
+            .get("blog")
+            .expect("schema should be parsed");
+
+        assert_eq!(schema.fields[0].field_type, FieldType::String);
+        assert_eq!(schema.fields[0].options, vec!["draft", "published"]);
+    }
+
+    #[test]
+    fn maps_union_literals_to_string_options() {
+        let parsed = parse_content_config(
+            r#"
+            const blog = defineCollection({
+              schema: z.object({
+                status: z.union([z.literal("draft"), z.literal("published")]),
+              }),
+            });
+            export const collections = { blog };
+            "#,
+        );
+
+        let schema = parsed
+            .schemas_by_collection
+            .get("blog")
+            .expect("schema should be parsed");
+
+        assert_eq!(schema.fields[0].field_type, FieldType::String);
+        assert_eq!(schema.fields[0].options, vec!["draft", "published"]);
     }
 
     #[test]
