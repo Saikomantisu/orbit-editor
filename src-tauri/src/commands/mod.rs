@@ -129,6 +129,15 @@ pub fn save_entry(input: crate::content::SaveEntryInput) -> Result<crate::conten
 }
 
 #[tauri::command]
+pub fn import_dropped_image(
+    project_path: String,
+    entry_file_path: String,
+    source_path: String,
+) -> Result<String, String> {
+    crate::content::import_dropped_image(&project_path, &entry_file_path, &source_path)
+}
+
+#[tauri::command]
 pub fn delete_entry(input: crate::content::DeleteEntryInput) -> Result<(), String> {
     crate::content::delete_entry(input)
 }

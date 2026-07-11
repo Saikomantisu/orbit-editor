@@ -583,9 +583,9 @@ function ImageArrayField({
           </div>
         )}
 
-        <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <div className="grid min-w-0 gap-2">
           <input
-            className={controlClasses("min-w-0 flex-1")}
+            className={controlClasses("min-w-0")}
             placeholder="Add image path"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -596,25 +596,27 @@ function ImageArrayField({
               }
             }}
           />
-          <Button
-            className="shrink-0 justify-center px-3"
-            size="sm"
-            variant="secondary"
-            onClick={() => addImage(draft)}
-          >
-            <Plus aria-hidden="true" size={14} strokeWidth={2.4} />
-            Add
-          </Button>
-          <Button
-            className="shrink-0 justify-center px-3"
-            size="sm"
-            variant="secondary"
-            disabled={pickingIndex === "new"}
-            onClick={() => pickImage("new")}
-          >
-            <FileImage aria-hidden="true" size={14} strokeWidth={2.3} />
-            {pickingIndex === "new" ? "Choosing..." : "Choose"}
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              className="w-full justify-center"
+              size="sm"
+              variant="secondary"
+              onClick={() => addImage(draft)}
+            >
+              <Plus aria-hidden="true" size={14} strokeWidth={2.4} />
+              Add
+            </Button>
+            <Button
+              className="w-full justify-center"
+              size="sm"
+              variant="secondary"
+              disabled={pickingIndex === "new"}
+              onClick={() => pickImage("new")}
+            >
+              <FileImage aria-hidden="true" size={14} strokeWidth={2.3} />
+              {pickingIndex === "new" ? "Choosing..." : "Choose"}
+            </Button>
+          </div>
         </div>
       </div>
     </Field>
@@ -659,37 +661,35 @@ function ImageField({
 
   return (
     <Field label={`${field.name}${field.required ? " *" : ""}`} hint={hint} error={error}>
-      <div className="grid gap-3 rounded-orbit border border-white/10 bg-white/[0.035] p-3 md:grid-cols-[12rem_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-3 rounded-orbit border border-white/10 bg-white/[0.035] p-3">
         <ImagePreview
-          className="aspect-[4/3] h-auto w-full"
+          className="aspect-[16/10] h-auto w-full"
           imagePath={imagePath}
           key={`${projectPath}:${imagePath}`}
           projectPath={projectPath}
         />
 
-        <div className="grid min-w-0 content-center gap-2">
-          <span className="truncate text-[0.84rem] font-black text-text-primary" title={imagePath}>
-            {imagePath ? fileNameFromPath(imagePath) : "No image selected"}
-          </span>
-          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <input
-              className={controlClasses("min-w-0")}
-              aria-label={`${field.name} path`}
-              value={imagePath}
-              onChange={(event) => onChange(field.name, event.target.value)}
-            />
-            <Button
-              className="shrink-0 justify-center px-3"
-              size="sm"
-              variant="secondary"
-              disabled={isPicking}
-              onClick={pickImage}
-            >
-              <FileImage aria-hidden="true" size={14} strokeWidth={2.3} />
-              {isPicking ? "Choosing..." : "Choose"}
-            </Button>
-          </div>
-        </div>
+        <span className="truncate text-[0.82rem] font-black text-text-primary" title={imagePath}>
+          {imagePath ? fileNameFromPath(imagePath) : "No image selected"}
+        </span>
+
+        <input
+          className={controlClasses("min-w-0")}
+          aria-label={`${field.name} path`}
+          value={imagePath}
+          onChange={(event) => onChange(field.name, event.target.value)}
+        />
+
+        <Button
+          className="w-full justify-center"
+          size="sm"
+          variant="secondary"
+          disabled={isPicking}
+          onClick={pickImage}
+        >
+          <FileImage aria-hidden="true" size={14} strokeWidth={2.3} />
+          {isPicking ? "Choosing..." : "Choose"}
+        </Button>
       </div>
     </Field>
   );

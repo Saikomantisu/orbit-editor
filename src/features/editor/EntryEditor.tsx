@@ -1,4 +1,18 @@
-import { AlertCircle, FileCode2, FileText, FolderOpen, Loader2, PenLine, Save } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  FileCode2,
+  FileText,
+  FolderOpen,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  PanelRight,
+  Pencil,
+  Save,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toTitleCase } from "../../lib/format";
 import {
@@ -6,32 +20,56 @@ import {
   type Entry,
   type EntrySummary,
   type FrontmatterValue,
+  importDroppedImage,
   readEntry,
   saveEntry,
 } from "../../lib/tauri";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
+import { IconButton } from "../../ui/IconButton";
+import { SingleToggleGroup } from "../../ui/ToggleGroup";
 import { FrontmatterForm } from "./FrontmatterForm";
-import { buildFrontmatterFields } from "./frontmatterFields";
-import { validateFrontmatter } from "./frontmatterValidation";
+import { buildFrontmatterFields, type FrontmatterField } from "./frontmatterFields";
+import { type FrontmatterErrors, validateFrontmatter } from "./frontmatterValidation";
 import { normalizeForSave, stableStringify } from "./frontmatterValues";
+import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
+
+type ContentMode = "edit" | "preview";
 
 type EntryEditorProps = {
   projectPath: string;
   collection: CollectionSummary | null;
   entry: EntrySummary | null;
+  metadataOpen: boolean;
+  focusMode: boolean;
+  onToggleMetadata: () => void;
+  onToggleFocus: () => void;
   onSaved: () => Promise<void> | void;
 };
 
-export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEditorProps) {
+export function EntryEditor({
+  projectPath,
+  collection,
+  entry,
+  metadataOpen,
+  focusMode,
+  onToggleMetadata,
+  onToggleFocus,
+  onSaved,
+}: EntryEditorProps) {
   const [loadedEntry, setLoadedEntry] = useState<Entry | null>(null);
   const [frontmatter, setFrontmatter] = useState<Record<string, FrontmatterValue>>({});
   const [baseline, setBaseline] = useState("");
+  const [body, setBody] = useState("");
+  const [bodyBaseline, setBodyBaseline] = useState("");
+  const [contentMode, setContentMode] = useState<ContentMode>("edit");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const loadSelectedEntry = useCallback(async () => {
@@ -39,12 +77,15 @@ export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEd
       setLoadedEntry(null);
       setFrontmatter({});
       setBaseline("");
+      setBody("");
+      setBodyBaseline("");
       return;
     }
 
     setIsLoading(true);
     setLoadError(null);
     setSaveError(null);
+    setImageError(null);
     setFieldErrors({});
 
     try {
@@ -53,6 +94,8 @@ export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEd
       setLoadedEntry(nextEntry);
       setFrontmatter(nextEntry.frontmatter);
       setBaseline(stableStringify(normalized));
+      setBody(nextEntry.body);
+      setBodyBaseline(nextEntry.body);
     } catch (error) {
       setLoadedEntry(null);
       setLoadError(getErrorMessage(error, "Could not read entry."));
@@ -69,12 +112,15 @@ export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEd
         setLoadedEntry(null);
         setFrontmatter({});
         setBaseline("");
+        setBody("");
+        setBodyBaseline("");
         return;
       }
 
       setIsLoading(true);
       setLoadError(null);
       setSaveError(null);
+      setImageError(null);
       setFieldErrors({});
 
       try {
@@ -86,6 +132,8 @@ export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEd
         setLoadedEntry(nextEntry);
         setFrontmatter(nextEntry.frontmatter);
         setBaseline(stableStringify(normalized));
+        setBody(nextEntry.body);
+        setBodyBaseline(nextEntry.body);
       } catch (error) {
         if (!isActive) {
           return;
@@ -119,8 +167,14 @@ export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEd
     [allFields, frontmatter],
   );
   const mergedErrors = { ...validationErrors, ...fieldErrors };
+  const metadataErrorCount = Object.keys(mergedErrors).length;
+
   const normalizedFrontmatter = useMemo(() => normalizeForSave(frontmatter), [frontmatter]);
-  const isDirty = loadedEntry ? stableStringify(normalizedFrontmatter) !== baseline : false;
+  const frontmatterDirty = loadedEntry
+    ? stableStringify(normalizedFrontmatter) !== baseline
+    : false;
+  const bodyDirty = loadedEntry ? body !== bodyBaseline : false;
+  const isDirty = frontmatterDirty || bodyDirty;
   const hasErrors = Object.keys(mergedErrors).length > 0;
 
   const handleSave = useCallback(async () => {
@@ -136,18 +190,51 @@ export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEd
         projectPath,
         filePath: loadedEntry.filePath,
         frontmatter: normalizedFrontmatter,
-        body: loadedEntry.body,
+        body,
       });
       setLoadedEntry(savedEntry);
       setFrontmatter(savedEntry.frontmatter);
       setBaseline(stableStringify(normalizeForSave(savedEntry.frontmatter)));
+      setBody(savedEntry.body);
+      setBodyBaseline(savedEntry.body);
       await onSaved();
     } catch (error) {
-      setSaveError(getErrorMessage(error, "Could not save frontmatter."));
+      setSaveError(getErrorMessage(error, "Could not save entry."));
     } finally {
       setIsSaving(false);
     }
-  }, [hasErrors, isDirty, loadedEntry, normalizedFrontmatter, onSaved, projectPath]);
+  }, [body, hasErrors, isDirty, loadedEntry, normalizedFrontmatter, onSaved, projectPath]);
+
+  const handleDropImage = useCallback(
+    async (sourcePath: string) => {
+      if (!loadedEntry) {
+        return null;
+      }
+      setImageError(null);
+      try {
+        return await importDroppedImage(projectPath, loadedEntry.filePath, sourcePath);
+      } catch (error) {
+        setImageError(getErrorMessage(error, "Could not add the dropped image."));
+        return null;
+      }
+    },
+    [loadedEntry, projectPath],
+  );
+
+  const handleFieldChange = useCallback((name: string, value: FrontmatterValue) => {
+    setFrontmatter((current) => ({ ...current, [name]: value }));
+    setFieldErrors((current) => {
+      const { [name]: _removed, ...remaining } = current;
+      return remaining;
+    });
+  }, []);
+
+  const handleFieldError = useCallback((name: string, error: string | null) => {
+    setFieldErrors((current) => {
+      const { [name]: _removed, ...remaining } = current;
+      return error ? { ...remaining, [name]: error } : remaining;
+    });
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -160,6 +247,19 @@ export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEd
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSave]);
+
+  useEffect(() => {
+    if (!focusMode) {
+      return;
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onToggleFocus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [focusMode, onToggleFocus]);
 
   if (!collection) {
     return (
@@ -194,6 +294,12 @@ export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEd
   }
 
   const Icon = entry.extension === "mdx" ? FileCode2 : FileText;
+  const headerTitle =
+    (typeof frontmatter.title === "string" && frontmatter.title.trim()) ||
+    entry.title ||
+    toTitleCase(entry.slug);
+  const showMetadata = metadataOpen && !focusMode;
+  const hasEntry = Boolean(loadedEntry) && !isLoading && !loadError;
 
   return (
     <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg-base">
@@ -206,19 +312,38 @@ export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEd
         />
         <div className="min-w-0 flex-1">
           <h2 className="m-0 truncate text-[1rem] font-black text-text-primary" title={entry.slug}>
-            {entry.title ?? toTitleCase(entry.slug)}
+            {headerTitle}
           </h2>
-          <p
-            className="m-0 mt-1 truncate text-[0.76rem] font-bold text-text-faint"
-            title={entry.filePath}
-          >
-            {entry.filePath}
-          </p>
         </div>
         <Badge variant={entry.extension === "mdx" ? "accent" : "neutral"}>
           {entry.extension.toUpperCase()}
         </Badge>
         <Badge variant={isDirty ? "warning" : "muted"}>{isDirty ? "Unsaved" : "Saved"}</Badge>
+
+        <IconButton
+          label={focusMode ? "Exit focus mode" : "Enter focus mode"}
+          tooltip={focusMode ? "Exit focus mode (Esc)" : "Focus mode"}
+          variant="ghost"
+          onClick={onToggleFocus}
+        >
+          {focusMode ? (
+            <Minimize2 aria-hidden="true" size={15} strokeWidth={2.2} />
+          ) : (
+            <Maximize2 aria-hidden="true" size={15} strokeWidth={2.2} />
+          )}
+        </IconButton>
+
+        {focusMode ? null : (
+          <IconButton
+            label={metadataOpen ? "Hide metadata" : "Show metadata"}
+            tooltip={metadataOpen ? "Hide metadata" : "Show metadata"}
+            variant={metadataOpen ? "soft" : "ghost"}
+            onClick={onToggleMetadata}
+          >
+            <PanelRight aria-hidden="true" size={15} strokeWidth={2.2} />
+          </IconButton>
+        )}
+
         <Button
           variant="primary"
           size="sm"
@@ -230,79 +355,193 @@ export function EntryEditor({ projectPath, collection, entry, onSaved }: EntryEd
         </Button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto p-6">
-        {isLoading ? (
-          <div className="flex items-center gap-2 text-[0.86rem] font-bold text-text-faint">
-            <Loader2 aria-hidden="true" className="animate-spin" size={16} strokeWidth={2.2} />
-            Reading entry...
-          </div>
-        ) : loadError ? (
-          <div
-            className="grid max-w-2xl gap-3 rounded-orbit border border-danger/25 bg-danger/10 p-4 text-danger-ink"
-            role="alert"
-          >
-            <div className="flex gap-2">
-              <AlertCircle
-                aria-hidden="true"
-                className="mt-0.5 shrink-0"
-                size={18}
-                strokeWidth={2.2}
-              />
-              <p className="m-0 text-[0.86rem] leading-5">{loadError}</p>
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto]">
+        <div className="min-h-0 overflow-auto">
+          {isLoading ? (
+            <div className="flex items-center gap-2 p-6 text-[0.86rem] font-bold text-text-faint">
+              <Loader2 aria-hidden="true" className="animate-spin" size={16} strokeWidth={2.2} />
+              Reading entry...
             </div>
-            <Button className="w-fit" size="sm" variant="danger" onClick={loadSelectedEntry}>
-              Retry
-            </Button>
-          </div>
-        ) : loadedEntry ? (
-          <div className="mx-auto grid max-w-3xl gap-5">
-            <div className="flex items-start gap-2 rounded-orbit border border-white/10 bg-white/[0.035] px-3 py-2.5 text-[0.82rem] leading-5 text-text-faint">
-              <PenLine aria-hidden="true" className="mt-0.5 shrink-0" size={16} strokeWidth={2.1} />
-              <p className="m-0">
-                Editing frontmatter only. Markdown content is preserved unchanged when this entry is
-                saved.
-              </p>
-            </div>
-
-            {saveError ? (
-              <div
-                className="flex items-start gap-2 rounded-orbit border border-danger/25 bg-danger/10 px-3 py-2.5 text-[0.82rem] leading-5 text-danger-ink"
-                role="alert"
-              >
+          ) : loadError ? (
+            <div
+              className="m-6 grid max-w-2xl gap-3 rounded-orbit border border-danger/25 bg-danger/10 p-4 text-danger-ink"
+              role="alert"
+            >
+              <div className="flex gap-2">
                 <AlertCircle
                   aria-hidden="true"
                   className="mt-0.5 shrink-0"
                   size={18}
                   strokeWidth={2.2}
                 />
-                <span>{saveError}</span>
+                <p className="m-0 text-[0.86rem] leading-5">{loadError}</p>
               </div>
-            ) : null}
+              <Button className="w-fit" size="sm" variant="danger" onClick={loadSelectedEntry}>
+                Retry
+              </Button>
+            </div>
+          ) : loadedEntry ? (
+            <div className="mx-auto grid max-w-3xl gap-6 px-8 py-8">
+              {saveError ? (
+                <div
+                  className="flex items-start gap-2 rounded-orbit border border-danger/25 bg-danger/10 px-3 py-2.5 text-[0.82rem] leading-5 text-danger-ink"
+                  role="alert"
+                >
+                  <AlertCircle
+                    aria-hidden="true"
+                    className="mt-0.5 shrink-0"
+                    size={18}
+                    strokeWidth={2.2}
+                  />
+                  <span>{saveError}</span>
+                </div>
+              ) : null}
 
-            <FrontmatterForm
-              projectPath={projectPath}
-              primaryFields={primaryFields}
-              additionalFields={additionalFields}
-              values={frontmatter}
-              errors={mergedErrors}
-              onChange={(name, value) => {
-                setFrontmatter((current) => ({ ...current, [name]: value }));
-                setFieldErrors((current) => {
-                  const { [name]: _removed, ...remaining } = current;
-                  return remaining;
-                });
-              }}
-              onFieldError={(name, error) => {
-                setFieldErrors((current) => {
-                  const { [name]: _removed, ...remaining } = current;
-                  return error ? { ...remaining, [name]: error } : remaining;
-                });
-              }}
-            />
-          </div>
+              <section className="grid gap-3">
+                <div className="flex items-center justify-end gap-3">
+                  <div className="w-44">
+                    <SingleToggleGroup
+                      label="Content view"
+                      value={contentMode}
+                      onValueChange={setContentMode}
+                      options={[
+                        {
+                          value: "edit",
+                          label: "Edit",
+                          icon: <Pencil aria-hidden="true" size={13} strokeWidth={2.3} />,
+                        },
+                        {
+                          value: "preview",
+                          label: "Preview",
+                          icon: <Eye aria-hidden="true" size={13} strokeWidth={2.3} />,
+                        },
+                      ]}
+                    />
+                  </div>
+                </div>
+
+                {imageError ? (
+                  <div
+                    className="flex items-start gap-2 rounded-orbit border border-danger/25 bg-danger/10 px-3 py-2.5 text-[0.82rem] leading-5 text-danger-ink"
+                    role="alert"
+                  >
+                    <AlertCircle
+                      aria-hidden="true"
+                      className="mt-0.5 shrink-0"
+                      size={18}
+                      strokeWidth={2.2}
+                    />
+                    <span>{imageError}</span>
+                  </div>
+                ) : null}
+
+                {contentMode === "edit" ? (
+                  <MarkdownEditor value={body} onChange={setBody} onDropImage={handleDropImage} />
+                ) : (
+                  <MarkdownPreview body={body} />
+                )}
+              </section>
+            </div>
+          ) : null}
+        </div>
+
+        {hasEntry && showMetadata ? (
+          <MetadataPanel
+            projectPath={projectPath}
+            primaryFields={primaryFields}
+            additionalFields={additionalFields}
+            values={frontmatter}
+            errors={mergedErrors}
+            onChange={handleFieldChange}
+            onFieldError={handleFieldError}
+            onCollapse={onToggleMetadata}
+          />
+        ) : null}
+
+        {hasEntry && !showMetadata && !focusMode ? (
+          <MetadataRail errorCount={metadataErrorCount} onExpand={onToggleMetadata} />
         ) : null}
       </div>
     </section>
+  );
+}
+
+type MetadataPanelProps = {
+  projectPath: string;
+  primaryFields: FrontmatterField[];
+  additionalFields: FrontmatterField[];
+  values: Record<string, FrontmatterValue>;
+  errors: FrontmatterErrors;
+  onChange: (name: string, value: FrontmatterValue) => void;
+  onFieldError: (name: string, error: string | null) => void;
+  onCollapse: () => void;
+};
+
+function MetadataPanel({
+  projectPath,
+  primaryFields,
+  additionalFields,
+  values,
+  errors,
+  onChange,
+  onFieldError,
+  onCollapse,
+}: MetadataPanelProps) {
+  const isEmpty = primaryFields.length === 0 && additionalFields.length === 0;
+
+  return (
+    <aside
+      className="flex h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden border-l border-white/10 bg-surface-panel"
+      aria-label="Metadata"
+    >
+      <header className="flex min-h-12 items-center gap-2 border-b border-white/10 px-4">
+        <h3 className="m-0 flex-1 text-[0.78rem] font-black uppercase tracking-wide text-text-subtle">
+          Metadata
+        </h3>
+        <IconButton label="Hide metadata" tooltip="Hide metadata" onClick={onCollapse}>
+          <ChevronRight aria-hidden="true" size={16} strokeWidth={2.2} />
+        </IconButton>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {isEmpty ? (
+          <p className="m-0 text-[0.82rem] font-bold text-text-faint">
+            This entry has no frontmatter fields yet.
+          </p>
+        ) : (
+          <FrontmatterForm
+            projectPath={projectPath}
+            primaryFields={primaryFields}
+            additionalFields={additionalFields}
+            values={values}
+            errors={errors}
+            onChange={onChange}
+            onFieldError={onFieldError}
+          />
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function MetadataRail({ errorCount, onExpand }: { errorCount: number; onExpand: () => void }) {
+  return (
+    <aside
+      className="flex w-12 shrink-0 flex-col items-center gap-2 border-l border-white/10 bg-surface-panel p-2"
+      aria-label="Metadata"
+    >
+      <IconButton label="Show metadata" tooltip="Show metadata" onClick={onExpand}>
+        <ChevronLeft aria-hidden="true" size={16} strokeWidth={2.2} />
+      </IconButton>
+      {errorCount > 0 ? (
+        <Badge
+          variant="danger"
+          title={`${errorCount} metadata ${errorCount === 1 ? "error" : "errors"}`}
+        >
+          {errorCount}
+        </Badge>
+      ) : null}
+    </aside>
   );
 }
 

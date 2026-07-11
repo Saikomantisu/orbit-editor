@@ -13,12 +13,14 @@ type ProjectWorkspaceProps = {
 };
 
 /**
- * The in-project workspace: a persistent three-pane shell of
- * sidebar (collections ↔ entries) · editor · schema inspector.
+ * The in-project workspace: a writing-first three-pane shell of
+ * sidebar (collections ↔ entries) · Markdown editor · metadata panel.
  *
  * Selection lives here and is always derived against the latest scan, so a
  * rescan that drops a collection or entry simply falls back to an empty pane
  * instead of pointing at something that no longer exists.
+ *
+ * Focus mode hides both side panels so it is just the writer and the text.
  */
 export function ProjectWorkspace({
   project,
@@ -31,6 +33,8 @@ export function ProjectWorkspace({
   const [selectedCollectionName, setSelectedCollectionName] = useState<string | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [metadataOpen, setMetadataOpen] = useState(true);
+  const [focusMode, setFocusMode] = useState(false);
 
   const collections = scan?.collections ?? [];
   const selectedCollection =
@@ -50,28 +54,34 @@ export function ProjectWorkspace({
 
   return (
     <div className="grid h-full min-h-0 overflow-hidden grid-cols-[auto_minmax(0,1fr)] bg-bg-base">
-      <CollectionSidebar
-        projectPath={project.path}
-        scan={scan}
-        isLoading={isLoading}
-        errorMessage={errorMessage}
-        selectedCollection={selectedCollection}
-        selectedEntryId={selectedEntry?.id ?? null}
-        isCollapsed={!sidebarOpen}
-        onToggleCollapsed={() => setSidebarOpen((open) => !open)}
-        onRetry={onRetry}
-        onBackHome={onBackHome}
-        onSelectCollection={selectCollection}
-        onBackToCollections={backToCollections}
-        onSelectEntry={setSelectedEntryId}
-        onClearSelectedEntry={() => setSelectedEntryId(null)}
-        onRefreshCollections={onRetry}
-      />
+      {focusMode ? null : (
+        <CollectionSidebar
+          projectPath={project.path}
+          scan={scan}
+          isLoading={isLoading}
+          errorMessage={errorMessage}
+          selectedCollection={selectedCollection}
+          selectedEntryId={selectedEntry?.id ?? null}
+          isCollapsed={!sidebarOpen}
+          onToggleCollapsed={() => setSidebarOpen((open) => !open)}
+          onRetry={onRetry}
+          onBackHome={onBackHome}
+          onSelectCollection={selectCollection}
+          onBackToCollections={backToCollections}
+          onSelectEntry={setSelectedEntryId}
+          onClearSelectedEntry={() => setSelectedEntryId(null)}
+          onRefreshCollections={onRetry}
+        />
+      )}
 
       <EntryEditor
         projectPath={project.path}
         collection={selectedCollection}
         entry={selectedEntry}
+        metadataOpen={metadataOpen}
+        focusMode={focusMode}
+        onToggleMetadata={() => setMetadataOpen((open) => !open)}
+        onToggleFocus={() => setFocusMode((mode) => !mode)}
         onSaved={onRetry}
       />
     </div>

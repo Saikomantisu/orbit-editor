@@ -17,6 +17,7 @@ pub fn run() {
             commands::create_entry,
             commands::duplicate_entry,
             commands::save_entry,
+            commands::import_dropped_image,
             commands::delete_entry,
             commands::start_dev_server,
             commands::stop_dev_server,

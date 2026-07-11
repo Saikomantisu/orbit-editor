@@ -144,6 +144,10 @@ export function saveEntry(input: SaveEntryInput) {
   return invoke<Entry>("save_entry", { input });
 }
 
+export function importDroppedImage(projectPath: string, entryFilePath: string, sourcePath: string) {
+  return invoke<string>("import_dropped_image", { projectPath, entryFilePath, sourcePath });
+}
+
 export function startWindowDrag() {
   return getCurrentWindow().startDragging();
 }

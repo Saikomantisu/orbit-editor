@@ -671,6 +671,138 @@ fn escape_yaml_string(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+const IMAGE_EXTENSIONS: [&str; 7] = ["png", "jpg", "jpeg", "webp", "gif", "svg", "avif"];
+
+/// Copy a dropped image into the entry's collection under `src/assets/`, returning a
+/// Markdown reference path relative to the entry file (e.g. `../../assets/blog/photo.png`).
+pub fn import_dropped_image(
+    project_path: &str,
+    entry_file_path: &str,
+    source_path: &str,
+) -> Result<String, String> {
+    let project_path = canonical_project_path(project_path)?;
+    let (entry_path, collection_path, _extension) =
+        validate_entry_file_path(&project_path, entry_file_path)?;
+
+    let source = Path::new(source_path)
+        .canonicalize()
+        .map_err(|_| "The dropped image could not be found. Try dragging it again.".to_string())?;
+    if !source.is_file() {
+        return Err("Only image files can be dropped into the editor.".to_string());
+    }
+
+    let extension = source
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .filter(|extension| IMAGE_EXTENSIONS.contains(&extension.as_str()))
+        .ok_or_else(|| {
+            format!(
+                "That file is not a supported image. Drop a {} file.",
+                IMAGE_EXTENSIONS.join(", ")
+            )
+        })?;
+
+    let file_stem = source
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .map(sanitize_asset_stem)
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or_else(|| "image".to_string());
+
+    let collection_name = collection_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "Could not determine the collection for this entry.".to_string())?;
+
+    let assets_dir = project_path
+        .join("src")
+        .join("assets")
+        .join(collection_name);
+    fs::create_dir_all(&assets_dir).map_err(|_| {
+        "Could not create src/assets/ for images. Check project permissions.".to_string()
+    })?;
+
+    let destination = unique_asset_path(&assets_dir, &file_stem, &extension);
+    fs::copy(&source, &destination)
+        .map_err(|_| "Could not copy the image into the project. Check permissions.".to_string())?;
+
+    let entry_dir = entry_path
+        .parent()
+        .ok_or_else(|| "Could not determine where to place the image reference.".to_string())?;
+    Ok(relative_reference(entry_dir, &destination))
+}
+
+fn sanitize_asset_stem(stem: &str) -> String {
+    stem.chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '.') {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
+/// Pick a non-colliding path in `dir`, appending `-1`, `-2`, ... so existing files are never
+/// overwritten.
+fn unique_asset_path(dir: &Path, stem: &str, extension: &str) -> PathBuf {
+    let candidate = dir.join(format!("{stem}.{extension}"));
+    if !candidate.exists() {
+        return candidate;
+    }
+
+    let mut counter = 1;
+    loop {
+        let candidate = dir.join(format!("{stem}-{counter}.{extension}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+        counter += 1;
+    }
+}
+
+/// Build a forward-slashed path from `base_dir` to `target`, matching how Astro resolves
+/// relative image references inside a Markdown entry.
+fn relative_reference(base_dir: &Path, target: &Path) -> String {
+    let base: Vec<&std::ffi::OsStr> = base_dir
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(name) => Some(name),
+            _ => None,
+        })
+        .collect();
+    let target_components: Vec<&std::ffi::OsStr> = target
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(name) => Some(name),
+            _ => None,
+        })
+        .collect();
+
+    let shared = base
+        .iter()
+        .zip(target_components.iter())
+        .take_while(|(left, right)| left == right)
+        .count();
+
+    let mut segments: Vec<String> = Vec::new();
+    for _ in shared..base.len() {
+        segments.push("..".to_string());
+    }
+    for component in &target_components[shared..] {
+        segments.push(component.to_string_lossy().into_owned());
+    }
+
+    let joined = segments.join("/");
+    if joined.starts_with("..") {
+        joined
+    } else {
+        format!("./{joined}")
+    }
+}
+
 pub fn read_collection(collection: &str) -> Result<(), String> {
     if collection.trim().is_empty() {
         return Err("Choose a collection before reading entries.".to_string());
@@ -1660,6 +1792,66 @@ Body
         })
         .expect_err("outside file should fail");
         assert!(error.contains("src/content"));
+    }
+
+    #[test]
+    fn import_dropped_image_copies_into_assets_and_returns_relative_reference() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/hello.md");
+        project.create_file_with_contents("drops/photo.png", "image-bytes");
+        let entry = project.path.join("src/content/blog/hello.md");
+        let source = project.path.join("drops/photo.png");
+
+        let reference = import_dropped_image(
+            path_as_str(&project.path),
+            path_as_str(&entry),
+            path_as_str(&source),
+        )
+        .expect("dropped image should import");
+
+        assert_eq!(reference, "../../assets/blog/photo.png");
+        let copied = fs::read_to_string(project.path.join("src/assets/blog/photo.png"))
+            .expect("image should be copied into the project");
+        assert_eq!(copied, "image-bytes");
+    }
+
+    #[test]
+    fn import_dropped_image_avoids_overwriting_existing_files() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/hello.md");
+        project.create_file_with_contents("src/assets/blog/photo.png", "original");
+        project.create_file_with_contents("drops/photo.png", "dropped");
+        let entry = project.path.join("src/content/blog/hello.md");
+        let source = project.path.join("drops/photo.png");
+
+        let reference = import_dropped_image(
+            path_as_str(&project.path),
+            path_as_str(&entry),
+            path_as_str(&source),
+        )
+        .expect("dropped image should import");
+
+        assert_eq!(reference, "../../assets/blog/photo-1.png");
+        let original = fs::read_to_string(project.path.join("src/assets/blog/photo.png"))
+            .expect("original image should remain readable");
+        assert_eq!(original, "original");
+    }
+
+    #[test]
+    fn import_dropped_image_rejects_non_image_files() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/hello.md");
+        project.create_file_with_contents("drops/notes.txt", "not an image");
+        let entry = project.path.join("src/content/blog/hello.md");
+        let source = project.path.join("drops/notes.txt");
+
+        let error = import_dropped_image(
+            path_as_str(&project.path),
+            path_as_str(&entry),
+            path_as_str(&source),
+        )
+        .expect_err("non-image should be rejected");
+        assert!(error.contains("supported image"));
     }
 
     fn path_as_str(path: &Path) -> &str {

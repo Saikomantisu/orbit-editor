@@ -87,14 +87,14 @@ Orbit Editor v0.1 is complete when a user can:
 
 ## 6. Markdown Editor
 
-- [ ] Add Markdown editing area.
-- [ ] Add live Markdown preview.
-- [ ] Add syntax highlighting.
-- [ ] Support code blocks.
-- [ ] Support undo and redo.
-- [ ] Support image drag and drop.
-- [ ] Keep Markdown body separate from frontmatter.
-- [ ] Preserve Markdown body content on save.
+- [x] Add Markdown editing area.
+- [x] Add live Markdown preview.
+- [x] Add syntax highlighting.
+- [x] Support code blocks.
+- [x] Support undo and redo.
+- [x] Support image drag and drop.
+- [x] Keep Markdown body separate from frontmatter.
+- [x] Preserve Markdown body content on save.
 
 ## 7. File Saving
 
