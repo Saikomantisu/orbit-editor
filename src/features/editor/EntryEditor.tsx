@@ -7,9 +7,6 @@ import {
   FileText,
   FolderOpen,
   Loader2,
-  Maximize2,
-  Minimize2,
-  PanelRight,
   Pencil,
   Save,
 } from "lucide-react";
@@ -43,9 +40,7 @@ type EntryEditorProps = {
   collection: CollectionSummary | null;
   entry: EntrySummary | null;
   metadataOpen: boolean;
-  focusMode: boolean;
   onToggleMetadata: () => void;
-  onToggleFocus: () => void;
   onSaved: () => Promise<void> | void;
 };
 
@@ -54,9 +49,7 @@ export function EntryEditor({
   collection,
   entry,
   metadataOpen,
-  focusMode,
   onToggleMetadata,
-  onToggleFocus,
   onSaved,
 }: EntryEditorProps) {
   const [loadedEntry, setLoadedEntry] = useState<Entry | null>(null);
@@ -248,19 +241,6 @@ export function EntryEditor({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSave]);
 
-  useEffect(() => {
-    if (!focusMode) {
-      return;
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onToggleFocus();
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [focusMode, onToggleFocus]);
-
   if (!collection) {
     return (
       <section className="min-h-0 min-w-0 overflow-hidden bg-bg-base p-8">
@@ -298,7 +278,7 @@ export function EntryEditor({
     (typeof frontmatter.title === "string" && frontmatter.title.trim()) ||
     entry.title ||
     toTitleCase(entry.slug);
-  const showMetadata = metadataOpen && !focusMode;
+  const showMetadata = metadataOpen;
   const hasEntry = Boolean(loadedEntry) && !isLoading && !loadError;
 
   return (
@@ -319,30 +299,6 @@ export function EntryEditor({
           {entry.extension.toUpperCase()}
         </Badge>
         <Badge variant={isDirty ? "warning" : "muted"}>{isDirty ? "Unsaved" : "Saved"}</Badge>
-
-        <IconButton
-          label={focusMode ? "Exit focus mode" : "Enter focus mode"}
-          tooltip={focusMode ? "Exit focus mode (Esc)" : "Focus mode"}
-          variant="ghost"
-          onClick={onToggleFocus}
-        >
-          {focusMode ? (
-            <Minimize2 aria-hidden="true" size={15} strokeWidth={2.2} />
-          ) : (
-            <Maximize2 aria-hidden="true" size={15} strokeWidth={2.2} />
-          )}
-        </IconButton>
-
-        {focusMode ? null : (
-          <IconButton
-            label={metadataOpen ? "Hide metadata" : "Show metadata"}
-            tooltip={metadataOpen ? "Hide metadata" : "Show metadata"}
-            variant={metadataOpen ? "soft" : "ghost"}
-            onClick={onToggleMetadata}
-          >
-            <PanelRight aria-hidden="true" size={15} strokeWidth={2.2} />
-          </IconButton>
-        )}
 
         <Button
           variant="primary"
@@ -458,7 +414,7 @@ export function EntryEditor({
           />
         ) : null}
 
-        {hasEntry && !showMetadata && !focusMode ? (
+        {hasEntry && !showMetadata ? (
           <MetadataRail errorCount={metadataErrorCount} onExpand={onToggleMetadata} />
         ) : null}
       </div>

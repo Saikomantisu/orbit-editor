@@ -467,7 +467,6 @@ function ImageArrayField({
   onFieldError: (name: string, error: string | null) => void;
 }) {
   const [pickingIndex, setPickingIndex] = useState<number | "new" | null>(null);
-  const [draft, setDraft] = useState("");
   const imagePaths = Array.isArray(value) ? value.map((item) => toInputString(item)) : [];
 
   function updateImage(index: number, nextPath: string) {
@@ -494,7 +493,6 @@ function ImageArrayField({
     }
 
     onChange([...imagePaths, nextImagePath]);
-    setDraft("");
   }
 
   async function pickImage(index: number | "new") {
@@ -502,7 +500,7 @@ function ImageArrayField({
     onFieldError(field.name, null);
 
     try {
-      const currentImagePath = index === "new" ? draft : imagePaths[index];
+      const currentImagePath = index === "new" ? "" : imagePaths[index];
       const imagePath = await pickProjectImage(projectPath, currentImagePath);
       if (imagePath) {
         if (index === "new") {
@@ -584,39 +582,16 @@ function ImageArrayField({
         )}
 
         <div className="grid min-w-0 gap-2">
-          <input
-            className={controlClasses("min-w-0")}
-            placeholder="Add image path"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                addImage(draft);
-              }
-            }}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              className="w-full justify-center"
-              size="sm"
-              variant="secondary"
-              onClick={() => addImage(draft)}
-            >
-              <Plus aria-hidden="true" size={14} strokeWidth={2.4} />
-              Add
-            </Button>
-            <Button
-              className="w-full justify-center"
-              size="sm"
-              variant="secondary"
-              disabled={pickingIndex === "new"}
-              onClick={() => pickImage("new")}
-            >
-              <FileImage aria-hidden="true" size={14} strokeWidth={2.3} />
-              {pickingIndex === "new" ? "Choosing..." : "Choose"}
-            </Button>
-          </div>
+          <Button
+            className="w-full justify-center"
+            size="sm"
+            variant="secondary"
+            disabled={pickingIndex === "new"}
+            onClick={() => pickImage("new")}
+          >
+            <FileImage aria-hidden="true" size={14} strokeWidth={2.3} />
+            {pickingIndex === "new" ? "Choosing..." : "Choose"}
+          </Button>
         </div>
       </div>
     </Field>
@@ -672,13 +647,6 @@ function ImageField({
         <span className="truncate text-[0.82rem] font-black text-text-primary" title={imagePath}>
           {imagePath ? fileNameFromPath(imagePath) : "No image selected"}
         </span>
-
-        <input
-          className={controlClasses("min-w-0")}
-          aria-label={`${field.name} path`}
-          value={imagePath}
-          onChange={(event) => onChange(field.name, event.target.value)}
-        />
 
         <Button
           className="w-full justify-center"

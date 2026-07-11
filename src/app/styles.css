@@ -129,8 +129,55 @@ p {
   padding-left: 1.4em;
 }
 
+.markdown-preview ul {
+  list-style-type: disc;
+}
+
+.markdown-preview ol {
+  list-style-type: decimal;
+}
+
+.markdown-preview ul ul {
+  list-style-type: circle;
+}
+
+.markdown-preview ol ol,
+.markdown-preview ul ol {
+  list-style-type: lower-alpha;
+}
+
 .markdown-preview li {
   margin: 0.2em 0;
+}
+
+.markdown-preview li::marker {
+  color: var(--color-text-subtle);
+}
+
+.markdown-preview li > p {
+  margin: 0.35em 0;
+}
+
+.markdown-preview li > ul,
+.markdown-preview li > ol {
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+}
+
+.markdown-preview ul:has(input[type="checkbox"]) {
+  list-style: none;
+  padding-left: 0;
+}
+
+.markdown-preview li:has(> input[type="checkbox"]) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55em;
+}
+
+.markdown-preview input[type="checkbox"] {
+  margin-top: 0.45em;
+  accent-color: var(--color-accent);
 }
 
 .markdown-preview a {
