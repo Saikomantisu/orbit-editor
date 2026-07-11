@@ -1,11 +1,14 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
 use std::{
     fs,
+    io::Write,
     path::{Component, Path, PathBuf},
     time::SystemTime,
 };
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use yaml_edit::YamlFile;
 
 const MISSING_CONTENT_WARNING: &str =
     "src/content/ was not found, so there are no content collections to edit yet.";
@@ -58,6 +61,7 @@ pub struct Entry {
     pub frontmatter: Value,
     pub body: String,
     pub last_modified: Option<String>,
+    pub revision: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -99,6 +103,7 @@ pub struct SaveEntryInput {
     pub file_path: String,
     pub frontmatter: Value,
     pub body: String,
+    pub expected_revision: String,
 }
 
 pub fn scan_collections(project_path: &str) -> Result<CollectionScan, String> {
@@ -817,7 +822,7 @@ pub fn read_entry_file(project_path: &str, file_path: &str) -> Result<Entry, Str
         validate_entry_file_path(&project_path, file_path)?;
     let contents = fs::read_to_string(&entry_path)
         .map_err(|_| "Could not read the entry file. Check that it still exists.".to_string())?;
-    let (frontmatter, body) = parse_entry_contents(&project_path, &entry_path, &contents)?;
+    let parsed = parse_entry_contents(&project_path, &entry_path, &contents)?;
     let slug = entry_slug(&collection_path, &entry_path)
         .ok_or_else(|| "Could not determine the entry slug from its path.".to_string())?;
 
@@ -826,9 +831,10 @@ pub fn read_entry_file(project_path: &str, file_path: &str) -> Result<Entry, Str
         slug,
         file_path: path_to_string(&entry_path),
         extension,
-        frontmatter,
-        body,
+        frontmatter: parsed.frontmatter,
+        body: parsed.body,
         last_modified: entry_last_modified(&entry_path),
+        revision: file_revision(&contents),
     })
 }
 
@@ -841,13 +847,15 @@ pub fn save_entry(input: SaveEntryInput) -> Result<Entry, String> {
         return Err("Frontmatter must be a YAML object before saving.".to_string());
     }
 
-    let yaml = serde_yaml::to_string(&input.frontmatter)
-        .map_err(|_| "Could not serialize frontmatter to YAML.".to_string())?;
-    let yaml = yaml.trim_end();
-    let contents = format!("---\n{yaml}\n---\n{}", input.body);
+    let current_contents = fs::read_to_string(&entry_path)
+        .map_err(|_| "Could not read the entry file. Check that it still exists.".to_string())?;
+    if file_revision(&current_contents) != input.expected_revision {
+        return Err("This entry changed on disk after it was opened. Reload it before saving to avoid overwriting external changes.".to_string());
+    }
 
-    fs::write(&entry_path, contents)
-        .map_err(|_| "Could not save entry. Check project permissions.".to_string())?;
+    let current = parse_entry_contents(&project_path, &entry_path, &current_contents)?;
+    let contents = serialize_entry_contents(&current, &input.frontmatter, &input.body)?;
+    atomic_write_entry(&entry_path, &contents)?;
 
     read_entry_file(&input.project_path, &input.file_path)
 }
@@ -973,23 +981,47 @@ fn validate_entry_file_path(
     Ok((entry_path, collection_path, extension))
 }
 
+struct ParsedEntryContents {
+    frontmatter: Value,
+    frontmatter_source: Option<String>,
+    frontmatter_prefix: String,
+    frontmatter_suffix: String,
+    body: String,
+    newline: &'static str,
+}
+
 fn parse_entry_contents(
     project_path: &Path,
     entry_path: &Path,
     contents: &str,
-) -> Result<(Value, String), String> {
+) -> Result<ParsedEntryContents, String> {
     let Some(after_opening_marker) = contents.strip_prefix("---") else {
-        return Ok((Value::Object(Map::new()), contents.to_string()));
+        return Ok(ParsedEntryContents {
+            frontmatter: Value::Object(Map::new()),
+            frontmatter_source: None,
+            frontmatter_prefix: String::new(),
+            frontmatter_suffix: String::new(),
+            body: contents.to_string(),
+            newline: "\n",
+        });
     };
 
-    let Some(after_opening_newline) = after_opening_marker
-        .strip_prefix("\r\n")
-        .or_else(|| after_opening_marker.strip_prefix('\n'))
-    else {
-        return Ok((Value::Object(Map::new()), contents.to_string()));
+    let (after_opening_newline, newline) = if let Some(value) = after_opening_marker.strip_prefix("\r\n") {
+        (value, "\r\n")
+    } else if let Some(value) = after_opening_marker.strip_prefix('\n') {
+        (value, "\n")
+    } else {
+        return Ok(ParsedEntryContents {
+            frontmatter: Value::Object(Map::new()),
+            frontmatter_source: None,
+            frontmatter_prefix: String::new(),
+            frontmatter_suffix: String::new(),
+            body: contents.to_string(),
+            newline: "\n",
+        });
     };
 
-    let Some((frontmatter_source, body)) = split_frontmatter_body(after_opening_newline) else {
+    let Some((frontmatter_source, frontmatter_suffix, body)) = split_frontmatter_body(after_opening_newline) else {
         return Err(format!(
             "Could not parse frontmatter in {}. Check that the YAML block is valid.",
             display_project_path(project_path, entry_path)
@@ -1014,40 +1046,198 @@ fn parse_entry_contents(
         }
     };
 
-    Ok((frontmatter, body.to_string()))
+    Ok(ParsedEntryContents {
+        frontmatter,
+        frontmatter_source: Some(frontmatter_source.to_string()),
+        frontmatter_prefix: format!("---{newline}"),
+        frontmatter_suffix: frontmatter_suffix.to_string(),
+        body: body.to_string(),
+        newline,
+    })
 }
 
-fn split_frontmatter_body(contents_after_opening: &str) -> Option<(&str, &str)> {
+fn split_frontmatter_body(contents_after_opening: &str) -> Option<(&str, &str, &str)> {
     if let Some(body) = contents_after_opening.strip_prefix("---\r\n") {
-        return Some(("", body));
+        return Some(("", "---\r\n", body));
     }
-
     if let Some(body) = contents_after_opening.strip_prefix("---\n") {
-        return Some(("", body));
+        return Some(("", "---\n", body));
     }
-
     if contents_after_opening == "---" {
-        return Some(("", ""));
+        return Some(("", "---", ""));
     }
 
-    for marker in ["\n---\r\n", "\n---\n", "\r\n---\r\n", "\r\n---\n"] {
+    for marker in ["\r\n---\r\n", "\n---\n", "\r\n---", "\n---"] {
         if let Some(index) = contents_after_opening.find(marker) {
-            let marker_len = marker.len();
             return Some((
                 &contents_after_opening[..index],
-                &contents_after_opening[index + marker_len..],
+                marker,
+                &contents_after_opening[index + marker.len()..],
             ));
         }
     }
 
-    for marker in ["\n---", "\r\n---"] {
-        if contents_after_opening.ends_with(marker) {
-            let index = contents_after_opening.len() - marker.len();
-            return Some((&contents_after_opening[..index], ""));
-        }
+    None
+}
+
+fn serialize_entry_contents(
+    current: &ParsedEntryContents,
+    desired_frontmatter: &Value,
+    body: &str,
+) -> Result<String, String> {
+    let desired = desired_frontmatter
+        .as_object()
+        .ok_or_else(|| "Frontmatter must be a YAML object before saving.".to_string())?;
+
+    if current.frontmatter_source.is_none() && desired.is_empty() {
+        return Ok(body.to_string());
     }
 
-    None
+    let frontmatter = if let Some(source) = current.frontmatter_source.as_deref() {
+        edit_frontmatter(source, current.frontmatter.as_object(), desired, current.newline)?
+    } else {
+        serialize_yaml_object(desired, current.newline)?
+    };
+    let prefix = if current.frontmatter_source.is_some() {
+        current.frontmatter_prefix.as_str()
+    } else {
+        "---\n"
+    };
+    let suffix = if current.frontmatter_source.is_some() {
+        current.frontmatter_suffix.as_str()
+    } else {
+        "\n---\n"
+    };
+
+    Ok(format!("{prefix}{frontmatter}{suffix}{body}"))
+}
+
+fn edit_frontmatter(
+    source: &str,
+    original: Option<&Map<String, Value>>,
+    desired: &Map<String, Value>,
+    newline: &str,
+) -> Result<String, String> {
+    if source.trim().is_empty() {
+        return if desired.is_empty() {
+            Ok(source.to_string())
+        } else {
+            serialize_yaml_object(desired, newline)
+        };
+    }
+
+    if original.is_some_and(Map::is_empty) {
+        if desired.is_empty() {
+            return Ok(source.to_string());
+        }
+        let separator = if source.ends_with('\n') { "" } else { newline };
+        return Ok(format!(
+            "{source}{separator}{}",
+            serialize_yaml_object(desired, newline)?
+        ));
+    }
+
+    let yaml = source.parse::<YamlFile>().map_err(|_| {
+        "Could not preserve frontmatter formatting while saving. Check that the YAML block is valid."
+            .to_string()
+    })?;
+    let document = yaml.document().ok_or_else(|| {
+        "Could not preserve frontmatter formatting while saving. Check that the YAML block is valid."
+            .to_string()
+    })?;
+    let mapping = document.as_mapping().ok_or_else(|| {
+        "Could not preserve frontmatter formatting while saving. The YAML block must be an object."
+            .to_string()
+    })?;
+    let empty = Map::new();
+    let original = original.unwrap_or(&empty);
+
+    for key in original.keys().filter(|key| !desired.contains_key(*key)) {
+        mapping.remove(key.as_str());
+    }
+
+    let replacement = serde_yaml::to_string(desired)
+        .map_err(|_| "Could not serialize frontmatter to YAML.".to_string())?
+        .parse::<YamlFile>()
+        .map_err(|_| "Could not serialize frontmatter to YAML.".to_string())?;
+    let replacement_mapping = replacement
+        .document()
+        .and_then(|document| document.as_mapping())
+        .ok_or_else(|| "Could not serialize frontmatter to YAML.".to_string())?;
+
+    for (key, value) in desired {
+        if original.get(key) == Some(value) {
+            continue;
+        }
+        let replacement_value = replacement_mapping
+            .get(key.as_str())
+            .ok_or_else(|| "Could not serialize frontmatter to YAML.".to_string())?;
+        mapping.set(key.as_str(), replacement_value);
+    }
+
+    let mut edited = yaml.to_string();
+    if !source.ends_with('\n') && edited.ends_with('\n') {
+        edited.pop();
+    }
+    Ok(normalize_newlines(&edited, newline))
+}
+
+fn serialize_yaml_object(values: &Map<String, Value>, newline: &str) -> Result<String, String> {
+    let yaml = serde_yaml::to_string(values)
+        .map_err(|_| "Could not serialize frontmatter to YAML.".to_string())?;
+    Ok(normalize_newlines(yaml.trim_end_matches(['\r', '\n']), newline))
+}
+
+fn normalize_newlines(value: &str, newline: &str) -> String {
+    if newline == "\n" {
+        return value.to_string();
+    }
+
+    value.replace("\r\n", "\n").replace('\n', newline)
+}
+
+fn file_revision(contents: &str) -> String {
+    format!("{:x}", Sha256::digest(contents.as_bytes()))
+}
+
+fn atomic_write_entry(entry_path: &Path, contents: &str) -> Result<(), String> {
+    let parent = entry_path
+        .parent()
+        .ok_or_else(|| "Could not save entry. Check project permissions.".to_string())?;
+    let permissions = fs::metadata(entry_path)
+        .map_err(|_| "Could not save entry. Check project permissions.".to_string())?
+        .permissions();
+    let file_name = entry_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "Could not save entry. Check project permissions.".to_string())?;
+
+    for attempt in 0..100 {
+        let temporary_path = parent.join(format!(".{file_name}.orbit-save-{attempt}"));
+        let mut temporary = match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(_) => return Err("Could not save entry. Check project permissions.".to_string()),
+        };
+        let result = (|| -> Result<(), std::io::Error> {
+            temporary.write_all(contents.as_bytes())?;
+            temporary.sync_all()?;
+            fs::set_permissions(&temporary_path, permissions.clone())?;
+            fs::rename(&temporary_path, entry_path)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(&temporary_path);
+            return Err("Could not save entry. Check project permissions.".to_string());
+        }
+        return Ok(());
+    }
+
+    Err("Could not save entry. Check project permissions.".to_string())
 }
 
 #[cfg(test)]
@@ -1663,6 +1853,30 @@ Body
     }
 
     #[test]
+    fn saves_body_with_empty_frontmatter_without_reformatting_the_block() {
+        let project = TestProject::new();
+        project.create_file_with_contents("src/content/blog/hello.md", "---\n---\nOld body");
+        let file_path = project.path.join("src/content/blog/hello.md");
+        let entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect("entry should be read");
+
+        let saved = save_entry(SaveEntryInput {
+            project_path: path_as_str(&project.path).to_string(),
+            file_path: path_as_str(&file_path).to_string(),
+            frontmatter: serde_json::json!({}),
+            body: "New body".to_string(),
+            expected_revision: entry.revision.clone(),
+        })
+        .expect("entry should save");
+
+        assert_eq!(
+            fs::read_to_string(file_path).expect("entry should be readable"),
+            "---\n---\nNew body"
+        );
+        assert_ne!(saved.revision, entry.revision);
+    }
+
+    #[test]
     fn read_entry_rejects_malformed_frontmatter() {
         let project = TestProject::new();
         project.create_file_with_contents("src/content/blog/hello.md", "---\ntitle: [\n---\nBody");
@@ -1732,6 +1946,9 @@ Body
                 "tags": ["astro", "editor"]
             }),
             body: "\nBody".to_string(),
+            expected_revision: file_revision(
+                &fs::read_to_string(&file_path).expect("entry should be readable"),
+            ),
         })
         .expect("entry should save");
 
@@ -1760,6 +1977,9 @@ Body
             file_path: path_as_str(&file_path).to_string(),
             frontmatter: serde_json::json!({ "title": "New" }),
             body: "\n<Demo />".to_string(),
+            expected_revision: file_revision(
+                &fs::read_to_string(&file_path).expect("entry should be readable"),
+            ),
         })
         .expect("entry should save");
 
@@ -1780,6 +2000,9 @@ Body
             file_path: path_as_str(&file_path).to_string(),
             frontmatter: serde_json::json!(["title"]),
             body: String::new(),
+            expected_revision: file_revision(
+                &fs::read_to_string(&file_path).expect("entry should be readable"),
+            ),
         })
         .expect_err("non-object frontmatter should fail");
         assert!(error.contains("must be a YAML object"));
@@ -1789,9 +2012,107 @@ Body
             file_path: path_as_str(&outside).to_string(),
             frontmatter: serde_json::json!({}),
             body: String::new(),
+            expected_revision: file_revision(
+                &fs::read_to_string(&outside).expect("outside file should be readable"),
+            ),
         })
         .expect_err("outside file should fail");
         assert!(error.contains("src/content"));
+    }
+
+    #[test]
+    fn save_entry_preserves_unchanged_frontmatter_formatting_and_crlf_body() {
+        let project = TestProject::new();
+        let original = "---\r\n# Keep this comment\r\ntitle: 'Old title'\r\ntags: [astro, editor]\r\ndraft: false\r\n---\r\n\r\nBody\r\n";
+        project.create_file_with_contents("src/content/blog/hello.md", original);
+        let file_path = project.path.join("src/content/blog/hello.md");
+        let entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect("entry should be read");
+
+        save_entry(SaveEntryInput {
+            project_path: path_as_str(&project.path).to_string(),
+            file_path: path_as_str(&file_path).to_string(),
+            frontmatter: serde_json::json!({
+                "title": "New title",
+                "tags": ["astro", "editor"],
+                "draft": false,
+                "published": true
+            }),
+            body: entry.body,
+            expected_revision: entry.revision,
+        })
+        .expect("entry should save");
+
+        let saved = fs::read_to_string(&file_path).expect("saved entry should be readable");
+        assert!(saved.contains("# Keep this comment\r\ntitle: New title\r\ntags: [astro, editor]\r\ndraft: false\r\npublished: true"));
+        assert!(saved.ends_with("---\r\n\r\nBody\r\n"));
+        assert!(!saved.contains("\n") || saved.matches("\r\n").count() == saved.matches('\n').count());
+    }
+
+    #[test]
+    fn save_entry_removes_empty_optional_field_and_adds_frontmatter_to_plain_markdown() {
+        let project = TestProject::new();
+        project.create_file_with_contents(
+            "src/content/blog/hello.md",
+            "---\ntitle: Hello\ndescription: Remove me\n---\nBody",
+        );
+        let file_path = project.path.join("src/content/blog/hello.md");
+        let entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect("entry should be read");
+
+        save_entry(SaveEntryInput {
+            project_path: path_as_str(&project.path).to_string(),
+            file_path: path_as_str(&file_path).to_string(),
+            frontmatter: serde_json::json!({ "title": "Hello", "draft": true }),
+            body: entry.body,
+            expected_revision: entry.revision,
+        })
+        .expect("entry should save");
+        let saved = fs::read_to_string(&file_path).expect("saved entry should be readable");
+        assert_eq!(saved, "---\ntitle: Hello\ndraft: true\n---\nBody");
+
+        project.create_file_with_contents("src/content/blog/plain.md", "Plain body");
+        let plain_path = project.path.join("src/content/blog/plain.md");
+        let plain = read_entry_file(path_as_str(&project.path), path_as_str(&plain_path))
+            .expect("plain entry should be read");
+        save_entry(SaveEntryInput {
+            project_path: path_as_str(&project.path).to_string(),
+            file_path: path_as_str(&plain_path).to_string(),
+            frontmatter: serde_json::json!({ "title": "Plain" }),
+            body: plain.body,
+            expected_revision: plain.revision,
+        })
+        .expect("plain entry should save");
+        assert_eq!(
+            fs::read_to_string(plain_path).expect("plain entry should be readable"),
+            "---\ntitle: Plain\n---\nPlain body"
+        );
+    }
+
+    #[test]
+    fn save_entry_rejects_stale_revision_without_overwriting_disk() {
+        let project = TestProject::new();
+        project.create_file_with_contents("src/content/blog/hello.md", "---\ntitle: Old\n---\nBody");
+        let file_path = project.path.join("src/content/blog/hello.md");
+        let entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect("entry should be read");
+        fs::write(&file_path, "---\ntitle: External\n---\nChanged on disk")
+            .expect("external edit should be written");
+
+        let error = save_entry(SaveEntryInput {
+            project_path: path_as_str(&project.path).to_string(),
+            file_path: path_as_str(&file_path).to_string(),
+            frontmatter: serde_json::json!({ "title": "Orbit" }),
+            body: "Orbit body".to_string(),
+            expected_revision: entry.revision,
+        })
+        .expect_err("stale save should be rejected");
+
+        assert!(error.contains("Reload it before saving"));
+        assert_eq!(
+            fs::read_to_string(file_path).expect("entry should be readable"),
+            "---\ntitle: External\n---\nChanged on disk"
+        );
     }
 
     #[test]

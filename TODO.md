@@ -15,7 +15,7 @@ Orbit Editor v0.1 is complete when a user can:
 - [ ] Create a new entry.
 - [ ] Edit frontmatter visually.
 - [ ] Edit Markdown content.
-- [ ] Save changes directly to disk.
+- [x] Save changes directly to disk.
 - [ ] Preview the Astro site inside Orbit Editor.
 
 ## 1. Project Selection
@@ -98,19 +98,19 @@ Orbit Editor v0.1 is complete when a user can:
 
 ## 7. File Saving
 
-- [ ] Parse frontmatter and Markdown body from `.md` files.
-- [ ] Parse frontmatter and Markdown body from `.mdx` files.
-- [ ] Validate frontmatter before save.
-- [ ] Serialize frontmatter to YAML.
-- [ ] Combine serialized frontmatter with Markdown body.
-- [ ] Write changes back to the original entry file.
-- [ ] Avoid modifying unrelated project files.
-- [ ] Preserve formatting where practical.
-- [ ] Show actionable save errors.
-- [ ] Handle invalid Markdown.
-- [ ] Handle invalid frontmatter.
-- [ ] Handle missing files.
-- [ ] Handle write failures.
+- [x] Parse frontmatter and Markdown body from `.md` files.
+- [x] Parse frontmatter and Markdown body from `.mdx` files.
+- [x] Validate frontmatter before save.
+- [x] Serialize frontmatter to YAML.
+- [x] Combine serialized frontmatter with Markdown body.
+- [x] Write changes back to the original entry file.
+- [x] Avoid modifying unrelated project files.
+- [x] Preserve formatting where practical.
+- [x] Show actionable save errors.
+- [x] Handle invalid Markdown.
+- [x] Handle invalid frontmatter.
+- [x] Handle missing files.
+- [x] Handle write failures.
 
 ## 8. Assets
 
@@ -149,11 +149,11 @@ Orbit Editor v0.1 is complete when a user can:
 - [x] Test reading `.md` entries.
 - [x] Test reading `.mdx` entries.
 - [x] Test creating an entry.
-- [ ] Test editing frontmatter.
-- [ ] Test editing Markdown.
-- [ ] Test saving changes.
-- [ ] Test invalid frontmatter handling.
-- [ ] Test missing file handling.
+- [x] Test editing frontmatter.
+- [x] Test editing Markdown.
+- [x] Test saving changes.
+- [x] Test invalid frontmatter handling.
+- [x] Test missing file handling.
 - [ ] Test delete confirmation.
 - [x] Test duplicate entry behavior.
 - [ ] Test preview start and stop behavior.

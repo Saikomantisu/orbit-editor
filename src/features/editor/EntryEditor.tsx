@@ -21,6 +21,7 @@ import {
   readEntry,
   saveEntry,
 } from "../../lib/tauri";
+import { AlertDialog } from "../../ui/AlertDialog";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
@@ -64,6 +65,7 @@ export function EntryEditor({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [reloadConfirmationOpen, setReloadConfirmationOpen] = useState(false);
 
   const loadSelectedEntry = useCallback(async () => {
     if (!entry) {
@@ -169,6 +171,7 @@ export function EntryEditor({
   const bodyDirty = loadedEntry ? body !== bodyBaseline : false;
   const isDirty = frontmatterDirty || bodyDirty;
   const hasErrors = Object.keys(mergedErrors).length > 0;
+  const isSaveConflict = saveError?.includes("changed on disk after it was opened") ?? false;
 
   const handleSave = useCallback(async () => {
     if (!loadedEntry || !isDirty || hasErrors) {
@@ -184,6 +187,7 @@ export function EntryEditor({
         filePath: loadedEntry.filePath,
         frontmatter: normalizedFrontmatter,
         body,
+        expectedRevision: loadedEntry.revision,
       });
       setLoadedEntry(savedEntry);
       setFrontmatter(savedEntry.frontmatter);
@@ -349,7 +353,19 @@ export function EntryEditor({
                     size={18}
                     strokeWidth={2.2}
                   />
-                  <span>{saveError}</span>
+                  <div className="grid min-w-0 flex-1 gap-2">
+                    <span>{saveError}</span>
+                    {isSaveConflict ? (
+                      <Button
+                        className="w-fit"
+                        size="sm"
+                        variant="danger"
+                        onClick={() => setReloadConfirmationOpen(true)}
+                      >
+                        Reload entry
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
 
@@ -418,6 +434,18 @@ export function EntryEditor({
           <MetadataRail errorCount={metadataErrorCount} onExpand={onToggleMetadata} />
         ) : null}
       </div>
+
+      <AlertDialog
+        actionLabel="Reload entry"
+        description="Reloading replaces the unsaved changes in Orbit with the current file on disk."
+        onAction={() => {
+          setReloadConfirmationOpen(false);
+          void loadSelectedEntry();
+        }}
+        onOpenChange={setReloadConfirmationOpen}
+        open={reloadConfirmationOpen}
+        title="Discard unsaved changes?"
+      />
     </section>
   );
 }

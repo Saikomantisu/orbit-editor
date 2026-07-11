@@ -364,7 +364,7 @@ function DateField({
         {isOpen ? (
           <div
             aria-labelledby={monthHeadingId}
-            className="absolute left-0 top-[calc(100%+0.4rem)] z-50 grid w-[18rem] gap-3 rounded-orbit border border-white/12 bg-bg-panel p-3 shadow-[0_18px_48px_rgba(0,0,0,0.38)]"
+            className="absolute left-0 top-[calc(100%+0.4rem)] z-50 grid w-[18rem] gap-3 rounded-orbit border border-white/12 bg-[#0e1022]/98 p-3 shadow-[0_18px_48px_rgba(0,0,0,0.38)]"
             id={pickerId}
             ref={pickerRef}
             role="dialog"

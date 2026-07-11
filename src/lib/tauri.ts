@@ -99,6 +99,7 @@ export type Entry = {
   frontmatter: Record<string, FrontmatterValue>;
   body: string;
   lastModified: string | null;
+  revision: string;
 };
 
 export type SaveEntryInput = {
@@ -106,6 +107,7 @@ export type SaveEntryInput = {
   filePath: string;
   frontmatter: Record<string, FrontmatterValue>;
   body: string;
+  expectedRevision: string;
 };
 
 export function openProject() {
