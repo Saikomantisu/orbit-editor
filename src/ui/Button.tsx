@@ -21,8 +21,8 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: "min-h-8 px-3 text-[0.78rem]",
-  md: "min-h-9 px-4 text-[0.84rem]",
+  sm: "min-h-8 px-3 text-sm",
+  md: "min-h-9 px-4 text-base",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -34,7 +34,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={cx(
-        "inline-flex min-w-0 items-center justify-center gap-2 rounded-orbit border font-black transition-[background,border-color,color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-55",
+        "inline-flex min-w-0 items-center justify-center gap-2 rounded-orbit border font-medium transition-[background,border-color,color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-55",
         variantClasses[variant],
         sizeClasses[size],
         className,

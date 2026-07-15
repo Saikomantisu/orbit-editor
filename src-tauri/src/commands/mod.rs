@@ -24,11 +24,12 @@ pub async fn open_project(
 }
 
 #[tauri::command]
-pub async fn pick_project_image(
+pub async fn select_image_asset(
     app: tauri::AppHandle,
     project_path: String,
-    current_image_path: Option<String>,
-) -> Result<Option<String>, String> {
+    entry_file_path: String,
+    current_reference: Option<String>,
+) -> Result<Option<crate::content::ImageAssetSelection>, String> {
     let project_path = std::path::Path::new(&project_path)
         .canonicalize()
         .map_err(|_| "The selected project folder does not exist or cannot be read.".to_string())?;
@@ -44,8 +45,9 @@ pub async fn pick_project_image(
         &["png", "jpg", "jpeg", "webp", "gif", "svg", "avif"],
     );
 
-    if let Some(current_image_path) = current_image_path.as_deref() {
-        if let Some((directory, file_name)) = image_dialog_start(&project_path, current_image_path)
+    if let Some(current_reference) = current_reference.as_deref() {
+        if let Some((directory, file_name)) =
+            image_dialog_start(&project_path, &entry_file_path, current_reference)
         {
             dialog = dialog.set_directory(directory);
             if let Some(file_name) = file_name {
@@ -66,19 +68,24 @@ pub async fn pick_project_image(
         .canonicalize()
         .map_err(|_| "Could not read the selected image file.".to_string())?;
 
-    if !image_path.starts_with(&project_path) {
-        return Err("Choose an image inside the selected Astro project. Copying external assets will be handled by the Assets workflow.".to_string());
+    if image_path.starts_with(&project_path) {
+        let asset =
+            crate::content::project_image_reference(&project_path, &entry_file_path, &image_path)?;
+        return Ok(Some(crate::content::ImageAssetSelection::Project {
+            reference: asset.reference,
+            file_name: asset.file_name,
+        }));
     }
 
-    let relative_path = image_path
-        .strip_prefix(&project_path)
-        .map_err(|_| "Could not create a project-relative image path.".to_string())?
-        .components()
-        .filter_map(|component| component.as_os_str().to_str())
-        .collect::<Vec<_>>()
-        .join("/");
-
-    Ok(Some(relative_path))
+    let file_name = image_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(str::to_string)
+        .ok_or_else(|| "Could not read the selected image file name.".to_string())?;
+    Ok(Some(crate::content::ImageAssetSelection::External {
+        source_path: image_path.to_string_lossy().into_owned(),
+        file_name,
+    }))
 }
 
 #[tauri::command]
@@ -129,12 +136,12 @@ pub fn save_entry(input: crate::content::SaveEntryInput) -> Result<crate::conten
 }
 
 #[tauri::command]
-pub fn import_dropped_image(
+pub fn import_image_asset(
     project_path: String,
     entry_file_path: String,
     source_path: String,
-) -> Result<String, String> {
-    crate::content::import_dropped_image(&project_path, &entry_file_path, &source_path)
+) -> Result<crate::content::ImageAssetImport, String> {
+    crate::content::import_image_asset(&project_path, &entry_file_path, &source_path)
 }
 
 #[tauri::command]
@@ -143,13 +150,30 @@ pub fn delete_entry(input: crate::content::DeleteEntryInput) -> Result<(), Strin
 }
 
 #[tauri::command]
-pub fn start_dev_server(project_path: String) -> Result<(), String> {
-    crate::preview::start_dev_server(&project_path)
+pub fn start_dev_server(
+    preview: tauri::State<crate::preview::PreviewManager>,
+    project_path: String,
+) -> Result<crate::preview::PreviewStatus, String> {
+    crate::preview::start_dev_server(&preview, &project_path)
 }
 
 #[tauri::command]
-pub fn stop_dev_server() -> Result<(), String> {
-    crate::preview::stop_dev_server()
+pub fn stop_dev_server(
+    preview: tauri::State<crate::preview::PreviewManager>,
+) -> Result<crate::preview::PreviewStatus, String> {
+    crate::preview::stop_dev_server(&preview)
+}
+
+#[tauri::command]
+pub fn stop_process_on_preview_port() -> Result<(), String> {
+    crate::preview::stop_process_on_preview_port()
+}
+
+#[tauri::command]
+pub fn preview_status(
+    preview: tauri::State<crate::preview::PreviewManager>,
+) -> Result<crate::preview::PreviewStatus, String> {
+    crate::preview::status(&preview)
 }
 
 fn allow_project_asset_previews(
@@ -167,23 +191,27 @@ fn allow_project_asset_previews(
 
 fn image_dialog_start(
     project_path: &std::path::Path,
-    image_path: &str,
+    entry_file_path: &str,
+    image_reference: &str,
 ) -> Option<(std::path::PathBuf, Option<String>)> {
-    let image_path = image_path.trim();
-    if image_path.is_empty() || image_path.contains("://") {
+    let image_reference = image_reference.trim();
+    if image_reference.is_empty() || image_reference.contains("://") {
         return Some((project_path.to_path_buf(), None));
     }
 
-    let candidate = if image_path.starts_with('/') {
+    let candidate = if image_reference.starts_with('/') {
         project_path
             .join("public")
-            .join(image_path.trim_start_matches('/'))
+            .join(image_reference.trim_start_matches('/'))
     } else {
-        let path = std::path::Path::new(image_path);
+        let path = std::path::Path::new(image_reference);
         if path.is_absolute() {
             path.to_path_buf()
         } else {
-            project_path.join(path)
+            std::path::Path::new(entry_file_path)
+                .parent()
+                .map(|entry_dir| entry_dir.join(path))
+                .unwrap_or_else(|| project_path.join(path))
         }
     };
 

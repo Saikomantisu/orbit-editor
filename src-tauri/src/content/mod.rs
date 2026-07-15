@@ -106,6 +106,26 @@ pub struct SaveEntryInput {
     pub expected_revision: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum ImageAssetSelection {
+    Project {
+        reference: String,
+        file_name: String,
+    },
+    External {
+        source_path: String,
+        file_name: String,
+    },
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageAssetImport {
+    pub reference: String,
+    pub file_name: String,
+}
+
 pub fn scan_collections(project_path: &str) -> Result<CollectionScan, String> {
     if project_path.trim().is_empty() {
         return Err("Choose an Astro project folder before scanning collections.".to_string());
@@ -678,13 +698,53 @@ fn escape_yaml_string(value: &str) -> String {
 
 const IMAGE_EXTENSIONS: [&str; 7] = ["png", "jpg", "jpeg", "webp", "gif", "svg", "avif"];
 
-/// Copy a dropped image into the entry's collection under `src/assets/`, returning a
-/// Markdown reference path relative to the entry file (e.g. `../../assets/blog/photo.png`).
-pub fn import_dropped_image(
+/// Return the reference to an image already inside the selected project.
+pub fn project_image_reference(
+    project_path: &Path,
+    entry_file_path: &str,
+    image_path: &Path,
+) -> Result<ImageAssetImport, String> {
+    let project_path = project_path
+        .canonicalize()
+        .map_err(|_| "The selected project folder does not exist or cannot be read.".to_string())?;
+    let (entry_path, _, _) = validate_entry_file_path(&project_path, entry_file_path)?;
+    let image_path = image_path
+        .canonicalize()
+        .map_err(|_| "Could not read the selected image file.".to_string())?;
+    validate_image_file(&image_path)?;
+
+    if !image_path.starts_with(&project_path) {
+        return Err(
+            "Choose an image inside the selected Astro project or import an external image."
+                .to_string(),
+        );
+    }
+
+    let public_path = project_path.join("public");
+    let reference = if image_path.starts_with(&public_path) {
+        let relative = image_path.strip_prefix(&public_path).map_err(|_| {
+            "Could not create a public image reference from the selected file.".to_string()
+        })?;
+        format!("/{}", path_components(relative).join("/"))
+    } else {
+        let entry_dir = entry_path
+            .parent()
+            .ok_or_else(|| "Could not determine where to place the image reference.".to_string())?;
+        relative_reference(entry_dir, &image_path)
+    };
+
+    Ok(ImageAssetImport {
+        reference,
+        file_name: image_file_name(&image_path)?,
+    })
+}
+
+/// Copy an explicitly selected external image into the entry's collection under `src/assets/`.
+pub fn import_image_asset(
     project_path: &str,
     entry_file_path: &str,
     source_path: &str,
-) -> Result<String, String> {
+) -> Result<ImageAssetImport, String> {
     let project_path = canonical_project_path(project_path)?;
     let (entry_path, collection_path, _extension) =
         validate_entry_file_path(&project_path, entry_file_path)?;
@@ -692,21 +752,7 @@ pub fn import_dropped_image(
     let source = Path::new(source_path)
         .canonicalize()
         .map_err(|_| "The dropped image could not be found. Try dragging it again.".to_string())?;
-    if !source.is_file() {
-        return Err("Only image files can be dropped into the editor.".to_string());
-    }
-
-    let extension = source
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .map(str::to_ascii_lowercase)
-        .filter(|extension| IMAGE_EXTENSIONS.contains(&extension.as_str()))
-        .ok_or_else(|| {
-            format!(
-                "That file is not a supported image. Drop a {} file.",
-                IMAGE_EXTENSIONS.join(", ")
-            )
-        })?;
+    let extension = validate_image_file(&source)?;
 
     let file_stem = source
         .file_stem()
@@ -735,7 +781,43 @@ pub fn import_dropped_image(
     let entry_dir = entry_path
         .parent()
         .ok_or_else(|| "Could not determine where to place the image reference.".to_string())?;
-    Ok(relative_reference(entry_dir, &destination))
+    Ok(ImageAssetImport {
+        reference: relative_reference(entry_dir, &destination),
+        file_name: image_file_name(&destination)?,
+    })
+}
+
+fn validate_image_file(path: &Path) -> Result<String, String> {
+    if !path.is_file() {
+        return Err("Only image files can be selected or dropped into the editor.".to_string());
+    }
+
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .filter(|extension| IMAGE_EXTENSIONS.contains(&extension.as_str()))
+        .ok_or_else(|| {
+            format!(
+                "That file is not a supported image. Choose a {} file.",
+                IMAGE_EXTENSIONS.join(", ")
+            )
+        })
+}
+
+fn image_file_name(path: &Path) -> Result<String, String> {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .map(str::to_string)
+        .ok_or_else(|| "Could not read the selected image file name.".to_string())
+}
+
+fn path_components(path: &Path) -> Vec<String> {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(name) => Some(name.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect()
 }
 
 fn sanitize_asset_stem(stem: &str) -> String {
@@ -800,12 +882,7 @@ fn relative_reference(base_dir: &Path, target: &Path) -> String {
         segments.push(component.to_string_lossy().into_owned());
     }
 
-    let joined = segments.join("/");
-    if joined.starts_with("..") {
-        joined
-    } else {
-        format!("./{joined}")
-    }
+    segments.join("/")
 }
 
 pub fn read_collection(collection: &str) -> Result<(), String> {
@@ -1006,22 +1083,25 @@ fn parse_entry_contents(
         });
     };
 
-    let (after_opening_newline, newline) = if let Some(value) = after_opening_marker.strip_prefix("\r\n") {
-        (value, "\r\n")
-    } else if let Some(value) = after_opening_marker.strip_prefix('\n') {
-        (value, "\n")
-    } else {
-        return Ok(ParsedEntryContents {
-            frontmatter: Value::Object(Map::new()),
-            frontmatter_source: None,
-            frontmatter_prefix: String::new(),
-            frontmatter_suffix: String::new(),
-            body: contents.to_string(),
-            newline: "\n",
-        });
-    };
+    let (after_opening_newline, newline) =
+        if let Some(value) = after_opening_marker.strip_prefix("\r\n") {
+            (value, "\r\n")
+        } else if let Some(value) = after_opening_marker.strip_prefix('\n') {
+            (value, "\n")
+        } else {
+            return Ok(ParsedEntryContents {
+                frontmatter: Value::Object(Map::new()),
+                frontmatter_source: None,
+                frontmatter_prefix: String::new(),
+                frontmatter_suffix: String::new(),
+                body: contents.to_string(),
+                newline: "\n",
+            });
+        };
 
-    let Some((frontmatter_source, frontmatter_suffix, body)) = split_frontmatter_body(after_opening_newline) else {
+    let Some((frontmatter_source, frontmatter_suffix, body)) =
+        split_frontmatter_body(after_opening_newline)
+    else {
         return Err(format!(
             "Could not parse frontmatter in {}. Check that the YAML block is valid.",
             display_project_path(project_path, entry_path)
@@ -1094,7 +1174,12 @@ fn serialize_entry_contents(
     }
 
     let frontmatter = if let Some(source) = current.frontmatter_source.as_deref() {
-        edit_frontmatter(source, current.frontmatter.as_object(), desired, current.newline)?
+        edit_frontmatter(
+            source,
+            current.frontmatter.as_object(),
+            desired,
+            current.newline,
+        )?
     } else {
         serialize_yaml_object(desired, current.newline)?
     };
@@ -1135,6 +1220,13 @@ fn edit_frontmatter(
             "{source}{separator}{}",
             serialize_yaml_object(desired, newline)?
         ));
+    }
+
+    // yaml-edit 0.2 can drop the newline separating a block sequence from the next
+    // mapping entry when the final item is removed. Re-serializing an edited array
+    // keeps the frontmatter valid; unchanged arrays still retain their original style.
+    if original.is_some_and(|values| has_changed_array(values, desired)) {
+        return serialize_yaml_object(desired, newline);
     }
 
     let yaml = source.parse::<YamlFile>().map_err(|_| {
@@ -1182,10 +1274,19 @@ fn edit_frontmatter(
     Ok(normalize_newlines(&edited, newline))
 }
 
+fn has_changed_array(original: &Map<String, Value>, desired: &Map<String, Value>) -> bool {
+    desired.iter().any(|(key, value)| {
+        value.is_array() && original.get(key).is_some_and(|current| current != value)
+    })
+}
+
 fn serialize_yaml_object(values: &Map<String, Value>, newline: &str) -> Result<String, String> {
     let yaml = serde_yaml::to_string(values)
         .map_err(|_| "Could not serialize frontmatter to YAML.".to_string())?;
-    Ok(normalize_newlines(yaml.trim_end_matches(['\r', '\n']), newline))
+    Ok(normalize_newlines(
+        yaml.trim_end_matches(['\r', '\n']),
+        newline,
+    ))
 }
 
 fn normalize_newlines(value: &str, newline: &str) -> String {
@@ -2046,7 +2147,43 @@ Body
         let saved = fs::read_to_string(&file_path).expect("saved entry should be readable");
         assert!(saved.contains("# Keep this comment\r\ntitle: New title\r\ntags: [astro, editor]\r\ndraft: false\r\npublished: true"));
         assert!(saved.ends_with("---\r\n\r\nBody\r\n"));
-        assert!(!saved.contains("\n") || saved.matches("\r\n").count() == saved.matches('\n').count());
+        assert!(
+            !saved.contains("\n") || saved.matches("\r\n").count() == saved.matches('\n').count()
+        );
+    }
+
+    #[test]
+    fn save_entry_removing_last_array_item_preserves_following_frontmatter() {
+        let project = TestProject::new();
+        let original = "---\ntitle: Hello\ncategories:\n  - design\n  - development\n  - product\ndescription: Keep this text\n---\n\nBody\n";
+        project.create_file_with_contents("src/content/blog/hello.md", original);
+        let file_path = project.path.join("src/content/blog/hello.md");
+        let entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect("entry should be read");
+
+        save_entry(SaveEntryInput {
+            project_path: path_as_str(&project.path).to_string(),
+            file_path: path_as_str(&file_path).to_string(),
+            frontmatter: serde_json::json!({
+                "title": "Hello",
+                "categories": ["design", "development"],
+                "description": "Keep this text"
+            }),
+            body: entry.body,
+            expected_revision: entry.revision,
+        })
+        .expect("entry should save");
+
+        let saved = fs::read_to_string(&file_path).expect("saved entry should be readable");
+        let saved_entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
+            .expect("saved frontmatter should remain valid");
+        assert_eq!(
+            saved_entry.frontmatter["categories"],
+            serde_json::json!(["design", "development"])
+        );
+        assert_eq!(saved_entry.frontmatter["description"], "Keep this text");
+        assert_eq!(saved_entry.body, "\nBody\n");
+        assert!(saved.contains("description: Keep this text"));
     }
 
     #[test]
@@ -2092,7 +2229,8 @@ Body
     #[test]
     fn save_entry_rejects_stale_revision_without_overwriting_disk() {
         let project = TestProject::new();
-        project.create_file_with_contents("src/content/blog/hello.md", "---\ntitle: Old\n---\nBody");
+        project
+            .create_file_with_contents("src/content/blog/hello.md", "---\ntitle: Old\n---\nBody");
         let file_path = project.path.join("src/content/blog/hello.md");
         let entry = read_entry_file(path_as_str(&project.path), path_as_str(&file_path))
             .expect("entry should be read");
@@ -2116,28 +2254,34 @@ Body
     }
 
     #[test]
-    fn import_dropped_image_copies_into_assets_and_returns_relative_reference() {
+    fn import_image_asset_copies_into_assets_and_returns_relative_reference() {
         let project = TestProject::new();
+        let external = TestProject::new();
         project.create_file("src/content/blog/hello.md");
-        project.create_file_with_contents("drops/photo.png", "image-bytes");
+        external.create_file_with_contents("photo.png", "image-bytes");
         let entry = project.path.join("src/content/blog/hello.md");
-        let source = project.path.join("drops/photo.png");
+        let source = external.path.join("photo.png");
 
-        let reference = import_dropped_image(
+        let imported = import_image_asset(
             path_as_str(&project.path),
             path_as_str(&entry),
             path_as_str(&source),
         )
         .expect("dropped image should import");
 
-        assert_eq!(reference, "../../assets/blog/photo.png");
+        assert_eq!(imported.reference, "../../assets/blog/photo.png");
+        assert_eq!(imported.file_name, "photo.png");
         let copied = fs::read_to_string(project.path.join("src/assets/blog/photo.png"))
             .expect("image should be copied into the project");
         assert_eq!(copied, "image-bytes");
+        assert_eq!(
+            fs::read_to_string(source).expect("source should remain"),
+            "image-bytes"
+        );
     }
 
     #[test]
-    fn import_dropped_image_avoids_overwriting_existing_files() {
+    fn import_image_asset_avoids_overwriting_existing_files() {
         let project = TestProject::new();
         project.create_file("src/content/blog/hello.md");
         project.create_file_with_contents("src/assets/blog/photo.png", "original");
@@ -2145,34 +2289,124 @@ Body
         let entry = project.path.join("src/content/blog/hello.md");
         let source = project.path.join("drops/photo.png");
 
-        let reference = import_dropped_image(
+        let imported = import_image_asset(
             path_as_str(&project.path),
             path_as_str(&entry),
             path_as_str(&source),
         )
         .expect("dropped image should import");
 
-        assert_eq!(reference, "../../assets/blog/photo-1.png");
+        assert_eq!(imported.reference, "../../assets/blog/photo-1.png");
         let original = fs::read_to_string(project.path.join("src/assets/blog/photo.png"))
             .expect("original image should remain readable");
         assert_eq!(original, "original");
     }
 
     #[test]
-    fn import_dropped_image_rejects_non_image_files() {
+    fn import_image_asset_rejects_non_image_files() {
         let project = TestProject::new();
         project.create_file("src/content/blog/hello.md");
         project.create_file_with_contents("drops/notes.txt", "not an image");
         let entry = project.path.join("src/content/blog/hello.md");
         let source = project.path.join("drops/notes.txt");
 
-        let error = import_dropped_image(
+        let error = import_image_asset(
             path_as_str(&project.path),
             path_as_str(&entry),
             path_as_str(&source),
         )
         .expect_err("non-image should be rejected");
         assert!(error.contains("supported image"));
+    }
+
+    #[test]
+    fn import_image_asset_normalizes_extensions_and_keeps_the_source_file() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/hello.md");
+        project.create_file_with_contents("drops/Photo.PNG", "image-bytes");
+        let entry = project.path.join("src/content/blog/hello.md");
+        let source = project.path.join("drops/Photo.PNG");
+
+        let imported = import_image_asset(
+            path_as_str(&project.path),
+            path_as_str(&entry),
+            path_as_str(&source),
+        )
+        .expect("uppercase image extension should import");
+
+        assert_eq!(imported.reference, "../../assets/blog/Photo.png");
+        assert_eq!(
+            fs::read_to_string(&source).expect("source should remain"),
+            "image-bytes"
+        );
+        assert!(project.path.join("src/assets/blog/Photo.png").is_file());
+    }
+
+    #[test]
+    fn import_image_asset_rejects_missing_files() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/hello.md");
+        let entry = project.path.join("src/content/blog/hello.md");
+        let missing = project.path.join("drops/missing.png");
+
+        let error = import_image_asset(
+            path_as_str(&project.path),
+            path_as_str(&entry),
+            path_as_str(&missing),
+        )
+        .expect_err("missing image should be rejected");
+
+        assert!(error.contains("could not be found"));
+    }
+
+    #[test]
+    fn project_image_reference_uses_public_urls_and_entry_relative_paths() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/nested/post.md");
+        project.create_file("public/images/hero.png");
+        project.create_file("src/assets/blog/cover.png");
+        project.create_file("src/content/blog/nested/inline.png");
+        let entry = project.path.join("src/content/blog/nested/post.md");
+
+        let public_asset = project_image_reference(
+            &project.path,
+            path_as_str(&entry),
+            &project.path.join("public/images/hero.png"),
+        )
+        .expect("public image should resolve");
+        let source_asset = project_image_reference(
+            &project.path,
+            path_as_str(&entry),
+            &project.path.join("src/assets/blog/cover.png"),
+        )
+        .expect("source asset should resolve");
+        let content_asset = project_image_reference(
+            &project.path,
+            path_as_str(&entry),
+            &project.path.join("src/content/blog/nested/inline.png"),
+        )
+        .expect("content asset should resolve");
+
+        assert_eq!(public_asset.reference, "/images/hero.png");
+        assert_eq!(source_asset.reference, "../../../assets/blog/cover.png");
+        assert_eq!(content_asset.reference, "inline.png");
+    }
+
+    #[test]
+    fn project_image_reference_rejects_images_outside_the_project() {
+        let project = TestProject::new();
+        let external = TestProject::new();
+        project.create_file("src/content/blog/post.md");
+        external.create_file("outside.png");
+
+        let error = project_image_reference(
+            &project.path,
+            path_as_str(&project.path.join("src/content/blog/post.md")),
+            &external.path.join("outside.png"),
+        )
+        .expect_err("outside project image should be rejected");
+
+        assert!(error.contains("inside the selected Astro project"));
     }
 
     fn path_as_str(path: &Path) -> &str {

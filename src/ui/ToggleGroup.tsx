@@ -42,7 +42,7 @@ export function SingleToggleGroup<TValue extends string>({
         <ToggleGroupPrimitive.Item
           key={option.value}
           value={option.value}
-          className="inline-flex min-h-[27px] min-w-0 items-center justify-center gap-1 rounded-md px-1 text-[0.68rem] font-black text-text-faint transition-[background,color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/45 data-[state=on]:bg-accent/16 data-[state=on]:text-accent-hover hover:text-text-muted"
+          className="inline-flex min-h-[27px] min-w-0 items-center justify-center gap-1 rounded-md px-1 text-xs font-medium text-text-faint transition-[background,color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/45 data-[state=on]:bg-accent/16 data-[state=on]:text-accent-hover hover:text-text-muted"
         >
           {option.icon ? <span className="shrink-0">{option.icon}</span> : null}
           <span className="truncate">{option.label}</span>

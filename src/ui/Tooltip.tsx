@@ -13,7 +13,7 @@ export function Tooltip({ content, children }: TooltipProps) {
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content
           sideOffset={7}
-          className="z-50 max-w-64 rounded-md border border-white/10 bg-[#101226] px-2.5 py-1.5 text-xs font-bold text-text-muted shadow-[0_14px_34px_rgb(0_0_0/0.35)]"
+          className="z-50 max-w-64 rounded-md border border-white/10 bg-[#101226] px-2.5 py-1.5 text-xs font-normal text-text-muted shadow-[0_14px_34px_rgb(0_0_0/0.35)]"
         >
           {content}
           <TooltipPrimitive.Arrow className="fill-[#101226]" />

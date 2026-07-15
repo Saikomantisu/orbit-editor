@@ -5,8 +5,10 @@ import { languages } from "@codemirror/language-data";
 import { drawSelection, dropCursor, EditorView, keymap, placeholder } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { FileImage } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cx } from "../../lib/classes";
+import { Button } from "../../ui/Button";
 import { livePreview } from "./livePreview";
 
 type MarkdownEditorProps = {
@@ -17,6 +19,7 @@ type MarkdownEditorProps = {
    * return a Markdown-relative reference to insert, or null if the drop was rejected.
    */
   onDropImage?: (sourcePath: string) => Promise<string | null>;
+  onSelectImage?: (currentReference?: string) => Promise<string | null>;
 };
 
 const MONO_FONT = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace';
@@ -24,11 +27,11 @@ const MONO_FONT = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mo
 // Prose-first highlighting: headings grow, marks (`#`, `*`, `` ` ``) fade back, everything reads
 // like writing rather than code — closer to Obsidian's source view than a code editor.
 const proseHighlight = HighlightStyle.define([
-  { tag: t.heading1, fontSize: "1.55em", fontWeight: "800", color: "#f5f6ff", lineHeight: "1.3" },
-  { tag: t.heading2, fontSize: "1.32em", fontWeight: "800", color: "#f5f6ff", lineHeight: "1.3" },
-  { tag: t.heading3, fontSize: "1.15em", fontWeight: "800", color: "#f5f6ff" },
-  { tag: [t.heading4, t.heading5, t.heading6], fontWeight: "800", color: "#f5f6ff" },
-  { tag: t.strong, fontWeight: "800", color: "#f5f6ff" },
+  { tag: t.heading1, fontSize: "1.55em", fontWeight: "600", color: "#f5f6ff", lineHeight: "1.3" },
+  { tag: t.heading2, fontSize: "1.32em", fontWeight: "600", color: "#f5f6ff", lineHeight: "1.3" },
+  { tag: t.heading3, fontSize: "1.15em", fontWeight: "600", color: "#f5f6ff" },
+  { tag: [t.heading4, t.heading5, t.heading6], fontWeight: "600", color: "#f5f6ff" },
+  { tag: t.strong, fontWeight: "600", color: "#f5f6ff" },
   { tag: t.emphasis, fontStyle: "italic" },
   { tag: t.strikethrough, textDecoration: "line-through" },
   { tag: t.link, color: "#c4b8ff", textDecoration: "underline" },
@@ -44,7 +47,8 @@ const orbitTheme = EditorView.theme(
   {
     "&": { color: "#e7e9fb", backgroundColor: "transparent", height: "100%" },
     ".cm-scroller": {
-      fontFamily: '"DM Sans", ui-sans-serif, system-ui, sans-serif',
+      fontFamily:
+        '"DM Sans Variable", "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui, sans-serif',
       lineHeight: "1.75",
       overflow: "auto",
     },
@@ -149,7 +153,12 @@ const markdownFormatting = EditorView.domEventHandlers({
   },
 });
 
-export function MarkdownEditor({ value, onChange, onDropImage }: MarkdownEditorProps) {
+export function MarkdownEditor({
+  value,
+  onChange,
+  onDropImage,
+  onSelectImage,
+}: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [isDropTarget, setIsDropTarget] = useState(false);
@@ -159,6 +168,8 @@ export function MarkdownEditor({ value, onChange, onDropImage }: MarkdownEditorP
   onChangeRef.current = onChange;
   const onDropImageRef = useRef(onDropImage);
   onDropImageRef.current = onDropImage;
+  const onSelectImageRef = useRef(onSelectImage);
+  onSelectImageRef.current = onSelectImage;
   const valueRef = useRef(value);
   valueRef.current = value;
 
@@ -285,13 +296,53 @@ export function MarkdownEditor({ value, onChange, onDropImage }: MarkdownEditorP
     };
   }, []);
 
+  async function insertSelectedImage() {
+    const view = viewRef.current;
+    const selectImage = onSelectImageRef.current;
+    if (!view || !selectImage) {
+      return;
+    }
+
+    const insertAt = view.state.selection.main.head;
+    let reference: string | null;
+    try {
+      reference = await selectImage();
+    } catch {
+      // The owning editor displays the actionable asset error.
+      return;
+    }
+    if (!reference) {
+      return;
+    }
+    const snippet = `![](${reference})`;
+    view.dispatch({
+      changes: { from: insertAt, insert: snippet },
+      selection: { anchor: insertAt + snippet.length },
+      userEvent: "input.image",
+    });
+    view.focus();
+  }
+
   return (
-    <div
-      ref={hostRef}
-      className={cx(
-        "min-h-[24rem] rounded-orbit transition-shadow",
-        isDropTarget ? "shadow-[0_0_0_2px_var(--color-accent)]" : "",
-      )}
-    />
+    <div className="grid gap-2">
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!onSelectImage}
+          onClick={() => void insertSelectedImage()}
+        >
+          <FileImage aria-hidden="true" size={14} strokeWidth={2.3} />
+          Insert image
+        </Button>
+      </div>
+      <div
+        ref={hostRef}
+        className={cx(
+          "min-h-[24rem] rounded-orbit transition-shadow",
+          isDropTarget ? "shadow-[0_0_0_2px_var(--color-accent)]" : "",
+        )}
+      />
+    </div>
   );
 }

@@ -60,11 +60,11 @@ export function EntryEditorPlaceholder({ collection, entry }: EntryEditorPlaceho
             strokeWidth={2.1}
           />
           <div className="min-w-0 flex-1">
-            <h2 className="m-0 truncate text-lg font-black text-text-primary" title={entry.slug}>
+            <h2 className="m-0 truncate text-lg font-semibold text-text-primary" title={entry.slug}>
               {toTitleCase(entry.slug)}
             </h2>
             <p
-              className="m-0 mt-1 truncate text-[0.8rem] font-bold text-text-faint"
+              className="m-0 mt-1 truncate text-sm font-normal text-text-faint"
               title={entry.filePath}
             >
               {entry.filePath}
@@ -77,10 +77,10 @@ export function EntryEditorPlaceholder({ collection, entry }: EntryEditorPlaceho
 
         <div className="grid place-items-center gap-2.5 rounded-orbit border border-dashed border-white/10 bg-white/[0.025] px-6 py-10 text-center">
           <PenLine aria-hidden="true" className="text-text-faint" size={24} strokeWidth={1.8} />
-          <h3 className="m-0 text-base font-black text-text-muted">
+          <h3 className="m-0 text-base font-semibold text-text-muted">
             Visual editing is coming soon
           </h3>
-          <p className="m-0 max-w-[32rem] text-[0.86rem] leading-6 text-text-faint">
+          <p className="m-0 max-w-[32rem] text-base leading-6 text-text-faint">
             Reading and editing entry content isn't available yet. For now, open this file in your
             editor — Orbit Editor never changes files behind your back.
           </p>

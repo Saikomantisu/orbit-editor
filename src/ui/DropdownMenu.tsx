@@ -33,7 +33,7 @@ export function DropdownMenu({ label, trigger, items }: DropdownMenuProps) {
               key={item.label}
               onSelect={item.onSelect}
               className={cx(
-                "flex min-h-[30px] cursor-pointer select-none items-center gap-2 rounded px-2 text-[0.76rem] font-extrabold outline-none transition-colors data-[highlighted]:bg-accent/10 data-[highlighted]:text-accent-hover",
+                "flex min-h-[30px] cursor-default select-none items-center gap-2 rounded px-2 text-sm font-medium outline-none transition-colors data-[highlighted]:bg-accent/10 data-[highlighted]:text-accent-hover",
                 item.destructive
                   ? "text-text-muted data-[highlighted]:bg-danger/12 data-[highlighted]:text-danger-ink"
                   : "text-text-muted",

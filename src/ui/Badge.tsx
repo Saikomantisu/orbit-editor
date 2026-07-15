@@ -20,7 +20,7 @@ export function Badge({ className, variant = "neutral", ...props }: BadgeProps) 
   return (
     <span
       className={cx(
-        "inline-flex min-w-0 items-center gap-1 rounded-[5px] px-1.5 py-px text-[0.6rem] font-black uppercase leading-4 tracking-[0.04em]",
+        "inline-flex min-w-0 items-center gap-1 rounded-[5px] px-1.5 py-px text-2xs font-medium uppercase leading-4 tracking-[0.04em]",
         variantClasses[variant],
         className,
       )}

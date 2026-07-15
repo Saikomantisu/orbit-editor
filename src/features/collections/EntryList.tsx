@@ -121,7 +121,7 @@ export function EntryList({
     <div>
       <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2.5">
         <button
-          className="inline-flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-transparent py-1 pr-1 text-left font-black text-accent transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/45"
+          className="inline-flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-transparent py-1 pr-1 text-left font-medium text-accent transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/45"
           type="button"
           onClick={onBackToCollections}
           title="Back to collections"
@@ -148,7 +148,7 @@ export function EntryList({
 
       {actionError ? (
         <div
-          className="mb-2 flex items-start gap-2 rounded-orbit border border-danger/25 bg-danger/10 px-3 py-2.5 text-[0.82rem] leading-5 text-danger-ink"
+          className="mb-2 flex items-start gap-2 rounded-orbit border border-danger/25 bg-danger/10 px-3 py-2.5 text-base leading-5 text-danger-ink"
           role="alert"
         >
           <span>{actionError}</span>
@@ -159,7 +159,7 @@ export function EntryList({
         <div className="mb-2 grid gap-1.5">
           {collection.warnings.map((warning) => (
             <p
-              className="m-0 rounded-md border border-amber-300/18 bg-amber-300/9 px-2.5 py-2 text-[0.78rem] leading-5 text-amber-100/90"
+              className="m-0 rounded-md border border-amber-300/18 bg-amber-300/9 px-2.5 py-2 text-sm leading-5 text-amber-100/90"
               key={warning}
             >
               {warning}
@@ -277,15 +277,15 @@ function EntryRow({
         />
         <span className="grid min-w-0 gap-1">
           <strong
-            className="truncate text-[0.82rem] font-black text-text-muted group-data-[selected=true]:text-accent-hover"
+            className="truncate text-base font-medium text-text-muted group-data-[selected=true]:text-accent-hover"
             title={displayTitle}
           >
             {displayTitle}
           </strong>
-          <small className="truncate text-[0.72rem] font-bold text-text-faint" title={entry.slug}>
+          <small className="truncate text-xs font-normal text-text-faint" title={entry.slug}>
             {entry.slug}
           </small>
-          <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-[0.68rem] font-bold text-text-faint">
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs font-normal text-text-faint">
             {modified ? <span>{modified}</span> : null}
             <Badge variant={entry.extension === "mdx" ? "accent" : "neutral"}>
               {entry.extension.toUpperCase()}
@@ -366,9 +366,7 @@ function CreateEntryDialog({
       }}
     >
       <form className="grid gap-3" onSubmit={handleSubmit}>
-        <p className="m-0 text-[0.82rem] leading-5 text-text-subtle">
-          Collection: {collectionName}
-        </p>
+        <p className="m-0 text-base leading-5 text-text-subtle">Collection: {collectionName}</p>
         <TextField
           label="Title"
           value={title}
@@ -438,7 +436,7 @@ function DuplicateEntryDialog({
       }}
     >
       <form className="grid gap-3" onSubmit={handleSubmit}>
-        <p className="m-0 text-[0.82rem] leading-5 text-text-subtle">{entryDisplayTitle(entry)}</p>
+        <p className="m-0 text-base leading-5 text-text-subtle">{entryDisplayTitle(entry)}</p>
         <TextField
           label="New slug"
           value={newSlug}

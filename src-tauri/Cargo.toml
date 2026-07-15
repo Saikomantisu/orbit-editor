@@ -21,3 +21,6 @@ tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 time = { version = "0.3", features = ["formatting"] }
 yaml-edit = { version = "0.2.3", default-features = false }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

@@ -110,12 +110,39 @@ export type SaveEntryInput = {
   expectedRevision: string;
 };
 
+export type ImageAssetSelection =
+  | { kind: "project"; reference: string; fileName: string }
+  | { kind: "external"; sourcePath: string; fileName: string };
+
+export type ImageAssetImport = {
+  reference: string;
+  fileName: string;
+};
+
+export type PreviewState = "stopped" | "starting" | "running" | "error";
+
+export type PreviewStatus = {
+  state: PreviewState;
+  url: string | null;
+  command: string | null;
+  message: string | null;
+  canStopPortProcess: boolean;
+};
+
 export function openProject() {
   return invoke<ProjectValidation | null>("open_project");
 }
 
-export function pickProjectImage(projectPath: string, currentImagePath?: string) {
-  return invoke<string | null>("pick_project_image", { projectPath, currentImagePath });
+export function selectImageAsset(
+  projectPath: string,
+  entryFilePath: string,
+  currentReference?: string,
+) {
+  return invoke<ImageAssetSelection | null>("select_image_asset", {
+    projectPath,
+    entryFilePath,
+    currentReference,
+  });
 }
 
 export function scanProject(projectPath: string) {
@@ -146,8 +173,24 @@ export function saveEntry(input: SaveEntryInput) {
   return invoke<Entry>("save_entry", { input });
 }
 
-export function importDroppedImage(projectPath: string, entryFilePath: string, sourcePath: string) {
-  return invoke<string>("import_dropped_image", { projectPath, entryFilePath, sourcePath });
+export function importImageAsset(projectPath: string, entryFilePath: string, sourcePath: string) {
+  return invoke<ImageAssetImport>("import_image_asset", { projectPath, entryFilePath, sourcePath });
+}
+
+export function startDevServer(projectPath: string) {
+  return invoke<PreviewStatus>("start_dev_server", { projectPath });
+}
+
+export function stopDevServer() {
+  return invoke<PreviewStatus>("stop_dev_server");
+}
+
+export function stopProcessOnPreviewPort() {
+  return invoke<void>("stop_process_on_preview_port");
+}
+
+export function getPreviewStatus() {
+  return invoke<PreviewStatus>("preview_status");
 }
 
 export function startWindowDrag() {

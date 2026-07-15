@@ -370,7 +370,7 @@ const livePreviewPlugin = ViewPlugin.fromClass(
 const liveTheme = EditorView.theme({
   ".cm-strong": {
     color: "#f5f6ff",
-    fontWeight: "800",
+    fontWeight: "600",
   },
   ".cm-emphasis": {
     fontStyle: "italic",
@@ -381,7 +381,7 @@ const liveTheme = EditorView.theme({
   },
   ".cm-heading": {
     color: "#f5f6ff",
-    fontWeight: "800",
+    fontWeight: "600",
     lineHeight: "1.35",
   },
   ".cm-heading-1": {
@@ -395,7 +395,7 @@ const liveTheme = EditorView.theme({
   },
   ".cm-bullet": {
     color: "#8b8fbf",
-    fontWeight: "700",
+    fontWeight: "600",
   },
   ".cm-task-checkbox": {
     appearance: "none",

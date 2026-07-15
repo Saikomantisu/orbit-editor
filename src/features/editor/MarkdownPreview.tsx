@@ -14,7 +14,7 @@ export function MarkdownPreview({ body }: MarkdownPreviewProps) {
 
   if (body.trim().length === 0) {
     return (
-      <div className="min-h-[22rem] text-[0.86rem] text-text-faint">
+      <div className="min-h-[22rem] text-base text-text-faint">
         Nothing to preview yet. Switch to Edit and start writing.
       </div>
     );

@@ -36,23 +36,18 @@ export function ProjectPicker({
 
   return (
     <section className="flex min-h-[480px] w-full min-w-0 flex-col" aria-label="Open a project">
-      <h1 className="m-0 mb-3 max-w-[460px] text-4xl font-black leading-tight text-text-primary">
+      <h1 className="m-0 mb-2 max-w-[460px] text-xl font-semibold text-text-primary">
         Orbit Editor
       </h1>
-      <p className="mb-7 max-w-[480px] text-[1.02rem] leading-7 text-text-muted">
+      <p className="mb-7 max-w-[480px] text-base text-text-muted">
         Edit Astro Content Collections locally, without changing your project.
       </p>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Button
-          className="min-h-12 px-5"
-          variant="primary"
-          onClick={onChoose}
-          disabled={isChoosing}
-        >
+        <Button variant="primary" onClick={onChoose} disabled={isChoosing}>
           {isChoosing ? "Opening..." : "Open project"}
           {!isChoosing ? (
-            <span className="rounded bg-accent-ink/10 px-1.5 py-0.5 text-[0.7rem] font-black text-accent-ink/70">
+            <span className="rounded bg-accent-ink/10 px-1.5 py-0.5 text-xs font-medium text-accent-ink/70">
               ⌘O
             </span>
           ) : null}
@@ -61,7 +56,7 @@ export function ProjectPicker({
 
       {errorMessage ? (
         <p
-          className="mb-4 rounded-orbit border border-danger/28 bg-danger/12 px-3 py-2.5 text-[0.86rem] leading-5 text-danger-ink"
+          className="mb-4 rounded-orbit border border-danger/28 bg-danger/12 px-3 py-2.5 text-base leading-5 text-danger-ink"
           role="alert"
         >
           {errorMessage}
@@ -70,7 +65,7 @@ export function ProjectPicker({
 
       <div className="mt-2">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="m-0 text-[0.72rem] font-black uppercase tracking-[0.08em] text-text-faint">
+          <h2 className="m-0 text-xs font-medium uppercase tracking-[0.08em] text-text-faint">
             Recent projects
           </h2>
         </div>
@@ -89,10 +84,10 @@ export function ProjectPicker({
                   disabled={isChoosing || projectPendingRemoval?.path === project.path}
                   title={project.path}
                 >
-                  <span className="truncate text-[0.9rem] font-black text-text-primary">
+                  <span className="truncate text-base font-medium text-text-primary">
                     {project.name}
                   </span>
-                  <small className="truncate text-[0.74rem] font-bold text-text-faint">
+                  <small className="truncate text-xs font-normal text-text-faint">
                     {project.path}
                   </small>
                 </button>
@@ -111,7 +106,7 @@ export function ProjectPicker({
             ))}
           </div>
         ) : (
-          <p className="m-0 rounded-orbit border border-dashed border-white/10 px-4 py-5 text-center text-[0.84rem] text-text-faint">
+          <p className="m-0 rounded-orbit border border-dashed border-white/10 px-4 py-5 text-center text-base text-text-faint">
             Previously opened projects will appear here.
           </p>
         )}

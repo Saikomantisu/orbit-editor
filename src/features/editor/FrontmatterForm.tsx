@@ -2,7 +2,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { Calendar, ChevronLeft, ChevronRight, FileImage, Plus, X } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { cx } from "../../lib/classes";
-import { type FieldType, type FrontmatterValue, pickProjectImage } from "../../lib/tauri";
+import type { FieldType, FrontmatterValue } from "../../lib/tauri";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Field } from "../../ui/Field";
@@ -14,12 +14,14 @@ import { toInputString } from "./frontmatterValues";
 
 type FrontmatterFormProps = {
   projectPath: string;
+  entryFilePath: string;
   primaryFields: FrontmatterField[];
   additionalFields: FrontmatterField[];
   values: Record<string, FrontmatterValue>;
   errors: FrontmatterErrors;
   onChange: (name: string, value: FrontmatterValue) => void;
   onFieldError: (name: string, error: string | null) => void;
+  onChooseImage: (currentReference?: string) => Promise<string | null>;
 };
 
 type MonthDay =
@@ -38,12 +40,14 @@ const WEEKDAY_LABELS = [
 
 export function FrontmatterForm({
   projectPath,
+  entryFilePath,
   primaryFields,
   additionalFields,
   values,
   errors,
   onChange,
   onFieldError,
+  onChooseImage,
 }: FrontmatterFormProps) {
   return (
     <div className="grid gap-6">
@@ -53,15 +57,17 @@ export function FrontmatterForm({
             <FrontmatterControl
               key={field.name}
               projectPath={projectPath}
+              entryFilePath={entryFilePath}
               field={field}
               value={values[field.name]}
               error={errors[field.name]}
               onChange={onChange}
               onFieldError={onFieldError}
+              onChooseImage={onChooseImage}
             />
           ))
         ) : (
-          <p className="m-0 rounded-orbit border border-white/10 bg-white/[0.035] px-3 py-2.5 text-[0.84rem] leading-5 text-text-faint">
+          <p className="m-0 rounded-orbit border border-white/10 bg-white/[0.035] px-3 py-2.5 text-base leading-5 text-text-faint">
             No schema fields were detected for this collection. Orbit Editor is showing fields from
             the current entry instead.
           </p>
@@ -71,7 +77,7 @@ export function FrontmatterForm({
       {additionalFields.length ? (
         <section className="grid gap-3 border-t border-white/10 pt-5">
           <div className="flex min-w-0 items-center justify-between gap-3">
-            <h3 className="m-0 text-[0.86rem] font-black text-text-primary">Additional fields</h3>
+            <h3 className="m-0 text-base font-semibold text-text-primary">Additional fields</h3>
             <Badge variant="muted">{additionalFields.length}</Badge>
           </div>
           <div className="grid gap-4">
@@ -79,11 +85,13 @@ export function FrontmatterForm({
               <FrontmatterControl
                 key={field.name}
                 projectPath={projectPath}
+                entryFilePath={entryFilePath}
                 field={field}
                 value={values[field.name]}
                 error={errors[field.name]}
                 onChange={onChange}
                 onFieldError={onFieldError}
+                onChooseImage={onChooseImage}
               />
             ))}
           </div>
@@ -95,18 +103,22 @@ export function FrontmatterForm({
 
 function FrontmatterControl({
   projectPath,
+  entryFilePath,
   field,
   value,
   error,
   onChange,
   onFieldError,
+  onChooseImage,
 }: {
   projectPath: string;
+  entryFilePath: string;
   field: FrontmatterField;
   value: FrontmatterValue | undefined;
   error?: string;
   onChange: (name: string, value: FrontmatterValue) => void;
   onFieldError: (name: string, error: string | null) => void;
+  onChooseImage: (currentReference?: string) => Promise<string | null>;
 }) {
   const label = `${field.name}${field.required ? " *" : ""}`;
   const hint = field.isAdditional ? "Preserved from this entry's frontmatter." : undefined;
@@ -149,7 +161,7 @@ function FrontmatterControl({
   if (field.fieldType === "boolean") {
     return (
       <Field label={label} hint={hint} error={error}>
-        <label className="flex min-h-9 items-center gap-2.5 rounded-orbit border border-white/10 bg-white/[0.05] px-2.5 text-[0.86rem] text-text-primary">
+        <label className="flex min-h-9 items-center gap-2.5 rounded-orbit border border-white/10 bg-white/[0.05] px-2.5 text-base text-text-primary">
           <input
             className="h-4 w-4 accent-accent"
             type="checkbox"
@@ -167,12 +179,14 @@ function FrontmatterControl({
       return (
         <ImageArrayField
           projectPath={projectPath}
+          entryFilePath={entryFilePath}
           field={field}
           value={value}
           error={error}
           hint={hint}
           onChange={(nextValue) => onChange(field.name, nextValue)}
           onFieldError={onFieldError}
+          onChooseImage={onChooseImage}
         />
       );
     }
@@ -180,6 +194,7 @@ function FrontmatterControl({
     return (
       <TagEditor
         projectPath={projectPath}
+        entryFilePath={entryFilePath}
         field={field}
         value={value}
         error={error}
@@ -193,12 +208,14 @@ function FrontmatterControl({
     return (
       <ImageField
         projectPath={projectPath}
+        entryFilePath={entryFilePath}
         field={field}
         value={value}
         error={error}
         hint={hint}
         onChange={onChange}
         onFieldError={onFieldError}
+        onChooseImage={onChooseImage}
       />
     );
   }
@@ -377,7 +394,7 @@ function DateField({
               >
                 <ChevronLeft aria-hidden="true" size={15} strokeWidth={2.4} />
               </IconButton>
-              <strong className="text-[0.86rem] font-black text-text-primary" id={monthHeadingId}>
+              <strong className="text-base font-semibold text-text-primary" id={monthHeadingId}>
                 {currentMonthLabel}
               </strong>
               <IconButton label="Next month" tooltip="Next month" onClick={() => changeMonth(1)}>
@@ -393,7 +410,7 @@ function DateField({
                 <tr>
                   {WEEKDAY_LABELS.map((dayLabel) => (
                     <th
-                      className="h-7 text-center text-[0.68rem] font-black uppercase text-text-faint"
+                      className="h-7 text-center text-xs font-medium uppercase text-text-faint"
                       key={dayLabel.key}
                       scope="col"
                     >
@@ -412,7 +429,7 @@ function DateField({
                             aria-label={`Select ${dateButtonLabel(day.value)}`}
                             aria-pressed={day.value === dateValue}
                             className={cx(
-                              "grid h-8 w-full place-items-center rounded-md border border-transparent text-[0.78rem] font-black text-text-subtle transition-colors hover:border-accent/35 hover:bg-accent/12 hover:text-text-primary",
+                              "grid h-8 w-full place-items-center rounded-md border border-transparent text-sm font-medium text-text-subtle transition-colors hover:border-accent/35 hover:bg-accent/12 hover:text-text-primary",
                               day.value === dateValue
                                 ? "border-accent/50 bg-accent text-accent-ink hover:bg-accent hover:text-accent-ink"
                                 : "",
@@ -451,20 +468,24 @@ function DateField({
 
 function ImageArrayField({
   projectPath,
+  entryFilePath,
   field,
   value,
   error,
   hint,
   onChange,
   onFieldError,
+  onChooseImage,
 }: {
   projectPath: string;
+  entryFilePath: string;
   field: FrontmatterField;
   value: FrontmatterValue | undefined;
   error?: string;
   hint?: string;
   onChange: (value: FrontmatterValue) => void;
   onFieldError: (name: string, error: string | null) => void;
+  onChooseImage: (currentReference?: string) => Promise<string | null>;
 }) {
   const [pickingIndex, setPickingIndex] = useState<number | "new" | null>(null);
   const imagePaths = Array.isArray(value) ? value.map((item) => toInputString(item)) : [];
@@ -501,7 +522,7 @@ function ImageArrayField({
 
     try {
       const currentImagePath = index === "new" ? "" : imagePaths[index];
-      const imagePath = await pickProjectImage(projectPath, currentImagePath);
+      const imagePath = await onChooseImage(currentImagePath);
       if (imagePath) {
         if (index === "new") {
           addImage(imagePath);
@@ -531,9 +552,10 @@ function ImageArrayField({
                     className="h-full w-full rounded-none border-0"
                     imagePath={imagePath}
                     projectPath={projectPath}
+                    entryFilePath={entryFilePath}
                   />
                   <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 bg-gradient-to-b from-black/65 to-transparent p-2">
-                    <span className="min-w-0 truncate text-[0.68rem] font-black uppercase tracking-[0.08em] text-white/85">
+                    <span className="min-w-0 truncate text-xs font-medium uppercase tracking-[0.08em] text-white/85">
                       {index + 1}
                     </span>
                     <IconButton
@@ -548,7 +570,7 @@ function ImageArrayField({
                 </div>
                 <div className="grid gap-2 p-2">
                   <span
-                    className="truncate text-[0.78rem] font-black text-text-primary"
+                    className="truncate text-sm font-medium text-text-primary"
                     title={imagePath}
                   >
                     {fileNameFromPath(imagePath)}
@@ -576,7 +598,7 @@ function ImageArrayField({
                 size={24}
                 strokeWidth={1.8}
               />
-              <span className="text-[0.82rem] font-bold text-text-faint">No gallery images</span>
+              <span className="text-base font-normal text-text-faint">No gallery images</span>
             </div>
           </div>
         )}
@@ -600,20 +622,24 @@ function ImageArrayField({
 
 function ImageField({
   projectPath,
+  entryFilePath,
   field,
   value,
   error,
   hint,
   onChange,
   onFieldError,
+  onChooseImage,
 }: {
   projectPath: string;
+  entryFilePath: string;
   field: FrontmatterField;
   value: FrontmatterValue | undefined;
   error?: string;
   hint?: string;
   onChange: (name: string, value: FrontmatterValue) => void;
   onFieldError: (name: string, error: string | null) => void;
+  onChooseImage: (currentReference?: string) => Promise<string | null>;
 }) {
   const [isPicking, setIsPicking] = useState(false);
   const imagePath = toInputString(value).trim();
@@ -623,7 +649,7 @@ function ImageField({
     onFieldError(field.name, null);
 
     try {
-      const selectedImagePath = await pickProjectImage(projectPath, imagePath);
+      const selectedImagePath = await onChooseImage(imagePath);
       if (selectedImagePath) {
         onChange(field.name, selectedImagePath);
       }
@@ -640,11 +666,12 @@ function ImageField({
         <ImagePreview
           className="aspect-[16/10] h-auto w-full"
           imagePath={imagePath}
-          key={`${projectPath}:${imagePath}`}
+          key={`${projectPath}:${entryFilePath}:${imagePath}`}
           projectPath={projectPath}
+          entryFilePath={entryFilePath}
         />
 
-        <span className="truncate text-[0.82rem] font-black text-text-primary" title={imagePath}>
+        <span className="truncate text-base font-medium text-text-primary" title={imagePath}>
           {imagePath ? fileNameFromPath(imagePath) : "No image selected"}
         </span>
 
@@ -667,13 +694,15 @@ function ImagePreview({
   className,
   imagePath,
   projectPath,
+  entryFilePath,
 }: {
   className: string;
   imagePath: string;
   projectPath: string;
+  entryFilePath: string;
 }) {
   const [previewFailed, setPreviewFailed] = useState(false);
-  const nextPreviewSrc = imagePreviewSrc(projectPath, imagePath);
+  const nextPreviewSrc = imagePreviewSrc(projectPath, entryFilePath, imagePath);
   const previewSrc = previewFailed ? null : nextPreviewSrc;
 
   return (
@@ -698,7 +727,7 @@ function ImagePreview({
   );
 }
 
-function imagePreviewSrc(projectPath: string, imagePath: string) {
+function imagePreviewSrc(projectPath: string, entryFilePath: string, imagePath: string) {
   if (!imagePath || !looksLikeImagePath(imagePath) || /^(https?:|data:|blob:)/i.test(imagePath)) {
     return null;
   }
@@ -707,9 +736,23 @@ function imagePreviewSrc(projectPath: string, imagePath: string) {
     ? joinPath(projectPath, `public/${imagePath.slice(1)}`)
     : isAbsolutePath(imagePath)
       ? imagePath
-      : joinPath(projectPath, imagePath);
+      : isLegacyProjectRelativeReference(imagePath)
+        ? joinPath(projectPath, imagePath)
+        : joinPath(parentPath(entryFilePath), imagePath);
 
   return convertFileSrc(absolutePath);
+}
+
+// Earlier Orbit versions stored picker values relative to the project root. Keep those existing
+// frontmatter values previewable while new asset references remain relative to their entry.
+function isLegacyProjectRelativeReference(imagePath: string) {
+  return /^(?:src|public)[\\/]/i.test(imagePath.trim());
+}
+
+function parentPath(path: string) {
+  const normalized = path.replaceAll("\\", "/");
+  const index = normalized.lastIndexOf("/");
+  return index >= 0 ? normalized.slice(0, index) : path;
 }
 
 function looksLikeImagePath(value: string) {
@@ -723,7 +766,31 @@ function isAbsolutePath(path: string) {
 function joinPath(basePath: string, relativePath: string) {
   const separator = basePath.includes("\\") ? "\\" : "/";
   const normalizedRelative = relativePath.replaceAll(/[\\/]+/g, separator);
-  return `${basePath.replace(/[\\/]+$/, "")}${separator}${normalizedRelative.replace(/^[\\/]+/, "")}`;
+  const joined = `${basePath.replace(/[\\/]+$/, "")}${separator}${normalizedRelative.replace(/^[\\/]+/, "")}`;
+  return normalizePath(joined, separator);
+}
+
+function normalizePath(path: string, separator: string) {
+  const prefix = path.startsWith(separator) ? separator : "";
+  const segments = path.split(/[\\/]+/);
+  const normalized: string[] = [];
+
+  for (const segment of segments) {
+    if (!segment || segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      if (normalized.length > 0 && normalized.at(-1) !== "..") {
+        normalized.pop();
+      } else if (!prefix) {
+        normalized.push(segment);
+      }
+      continue;
+    }
+    normalized.push(segment);
+  }
+
+  return `${prefix}${normalized.join(separator)}`;
 }
 
 function fileNameFromPath(path: string) {
@@ -733,6 +800,7 @@ function fileNameFromPath(path: string) {
 
 function TagEditor({
   projectPath,
+  entryFilePath,
   field,
   value,
   error,
@@ -740,6 +808,7 @@ function TagEditor({
   onChange,
 }: {
   projectPath: string;
+  entryFilePath: string;
   field: FrontmatterField;
   value: FrontmatterValue | undefined;
   error?: string;
@@ -773,11 +842,16 @@ function TagEditor({
           {tags.length ? (
             tags.map((tag) => (
               <span
-                className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-accent/12 px-1.5 py-1 text-[0.76rem] font-bold text-accent-hover"
+                className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-accent/12 px-1.5 py-1 text-sm font-normal text-accent-hover"
                 key={tag}
               >
                 {looksLikeImagePath(tag) ? (
-                  <ImagePreview className="h-8 w-10" imagePath={tag} projectPath={projectPath} />
+                  <ImagePreview
+                    className="h-8 w-10"
+                    imagePath={tag}
+                    projectPath={projectPath}
+                    entryFilePath={entryFilePath}
+                  />
                 ) : null}
                 <span className="truncate">{tag}</span>
                 <IconButton
@@ -791,7 +865,7 @@ function TagEditor({
               </span>
             ))
           ) : (
-            <span className="px-1 text-[0.8rem] text-text-faint">No items</span>
+            <span className="px-1 text-sm text-text-faint">No items</span>
           )}
         </div>
         <div className="flex gap-2">
@@ -933,7 +1007,7 @@ function isCompleteDate(value: string) {
 
 function controlClasses(className?: string) {
   return cx(
-    "min-h-9 w-full rounded-orbit border border-white/10 bg-white/[0.05] px-2.5 text-[0.86rem] text-text-primary outline-none transition-colors placeholder:text-text-faint focus:border-accent/45 focus-visible:ring-2 focus-visible:ring-accent/35 disabled:opacity-60",
+    "min-h-9 w-full rounded-orbit border border-white/10 bg-white/[0.05] px-2.5 text-base text-text-primary outline-none transition-colors placeholder:text-text-faint focus:border-accent/45 focus-visible:ring-2 focus-visible:ring-accent/35 disabled:opacity-60",
     className,
   );
 }

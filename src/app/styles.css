@@ -1,8 +1,34 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400;1,9..40,500;1,9..40,600;1,9..40,700;1,9..40,800&display=swap");
+/* DM Sans is bundled locally (no network fetch) so it always loads, even offline. */
+@import "@fontsource-variable/dm-sans";
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    "DM Sans Variable", "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif,
+    system-ui, sans-serif;
+
+  /*
+   * Type scale — the ONLY font sizes allowed in UI chrome.
+   *   text-2xs 10px  badges, fine print
+   *   text-xs  11px  captions, metadata, uppercase section labels
+   *   text-sm  12px  secondary UI: menu items, tooltips, small buttons, tabs
+   *   text-base 13px default UI: body, inputs, buttons, list items (macOS control size)
+   *   text-lg  15px  panel & dialog titles
+   *   text-xl  20px  page titles (welcome screen)
+   * Weights: 400 body text · 500 interactive labels · 600 titles/emphasis. Nothing heavier.
+   */
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 0.875rem;
+  --text-xs: 0.6875rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.75rem;
+  --text-sm--line-height: 1.125rem;
+  --text-base: 0.8125rem;
+  --text-base--line-height: 1.25rem;
+  --text-lg: 0.9375rem;
+  --text-lg--line-height: 1.375rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
 
   --color-bg-base: #0a0b16;
   --color-bg-gradient-mid: #0c0e20;
@@ -49,12 +75,9 @@ body,
 body {
   margin: 0;
   overflow: hidden;
-  background: linear-gradient(
-    135deg,
-    var(--color-bg-base) 0%,
-    var(--color-bg-gradient-mid) 48%,
-    #050510 100%
-  );
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+  background: var(--color-bg-base);
 }
 
 button,
@@ -62,6 +85,17 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+/* Keep long document tabs reachable with a trackpad or horizontal scroll, without
+   adding a second visual rail to the compact workspace chrome. */
+.workspace-tabs {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.workspace-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 input,
@@ -86,7 +120,7 @@ p {
 .markdown-preview {
   color: var(--color-text-body);
   line-height: 1.7;
-  font-size: 0.92rem;
+  font-size: var(--text-lg);
   -webkit-user-select: text;
   user-select: text;
 }
@@ -100,7 +134,7 @@ p {
 .markdown-preview h3,
 .markdown-preview h4 {
   color: var(--color-text-primary);
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.3;
   margin: 1.4em 0 0.5em;
 }

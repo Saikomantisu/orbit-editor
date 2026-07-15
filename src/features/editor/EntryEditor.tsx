@@ -3,21 +3,18 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  FileCode2,
   FileText,
   FolderOpen,
   Loader2,
   Pencil,
-  Save,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toTitleCase } from "../../lib/format";
 import {
   type CollectionSummary,
   type Entry,
   type EntrySummary,
   type FrontmatterValue,
-  importDroppedImage,
+  importImageAsset,
   readEntry,
   saveEntry,
 } from "../../lib/tauri";
@@ -31,6 +28,7 @@ import { FrontmatterForm } from "./FrontmatterForm";
 import { buildFrontmatterFields, type FrontmatterField } from "./frontmatterFields";
 import { type FrontmatterErrors, validateFrontmatter } from "./frontmatterValidation";
 import { normalizeForSave, stableStringify } from "./frontmatterValues";
+import { useImageAssetPicker } from "./imageAssets";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 
@@ -43,6 +41,8 @@ type EntryEditorProps = {
   metadataOpen: boolean;
   onToggleMetadata: () => void;
   onSaved: () => Promise<void> | void;
+  tabId?: string;
+  onDirtyChange?: (tabId: string, isDirty: boolean) => void;
 };
 
 export function EntryEditor({
@@ -52,6 +52,8 @@ export function EntryEditor({
   metadataOpen,
   onToggleMetadata,
   onSaved,
+  tabId,
+  onDirtyChange,
 }: EntryEditorProps) {
   const [loadedEntry, setLoadedEntry] = useState<Entry | null>(null);
   const [frontmatter, setFrontmatter] = useState<Record<string, FrontmatterValue>>({});
@@ -66,6 +68,10 @@ export function EntryEditor({
   const [imageError, setImageError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [reloadConfirmationOpen, setReloadConfirmationOpen] = useState(false);
+  const { chooseImage, confirmation: imageImportConfirmation } = useImageAssetPicker(
+    projectPath,
+    loadedEntry?.filePath ?? entry?.filePath ?? "",
+  );
 
   const loadSelectedEntry = useCallback(async () => {
     if (!entry) {
@@ -173,8 +179,18 @@ export function EntryEditor({
   const hasErrors = Object.keys(mergedErrors).length > 0;
   const isSaveConflict = saveError?.includes("changed on disk after it was opened") ?? false;
 
+  useEffect(() => {
+    if (!tabId) {
+      return;
+    }
+
+    onDirtyChange?.(tabId, isDirty);
+
+    return () => onDirtyChange?.(tabId, false);
+  }, [isDirty, onDirtyChange, tabId]);
+
   const handleSave = useCallback(async () => {
-    if (!loadedEntry || !isDirty || hasErrors) {
+    if (!loadedEntry || !isDirty || hasErrors || isSaving) {
       return;
     }
 
@@ -200,7 +216,7 @@ export function EntryEditor({
     } finally {
       setIsSaving(false);
     }
-  }, [body, hasErrors, isDirty, loadedEntry, normalizedFrontmatter, onSaved, projectPath]);
+  }, [body, hasErrors, isDirty, isSaving, loadedEntry, normalizedFrontmatter, onSaved, projectPath]);
 
   const handleDropImage = useCallback(
     async (sourcePath: string) => {
@@ -209,13 +225,28 @@ export function EntryEditor({
       }
       setImageError(null);
       try {
-        return await importDroppedImage(projectPath, loadedEntry.filePath, sourcePath);
+        const imported = await importImageAsset(projectPath, loadedEntry.filePath, sourcePath);
+        return imported.reference;
       } catch (error) {
         setImageError(getErrorMessage(error, "Could not add the dropped image."));
         return null;
       }
     },
     [loadedEntry, projectPath],
+  );
+
+  const handleSelectImage = useCallback(
+    async (currentReference?: string) => {
+      setImageError(null);
+      try {
+        return await chooseImage(currentReference);
+      } catch (error) {
+        const message = getErrorMessage(error, "Could not choose image.");
+        setImageError(message);
+        throw error;
+      }
+    },
+    [chooseImage],
   );
 
   const handleFieldChange = useCallback((name: string, value: FrontmatterValue) => {
@@ -277,48 +308,15 @@ export function EntryEditor({
     );
   }
 
-  const Icon = entry.extension === "mdx" ? FileCode2 : FileText;
-  const headerTitle =
-    (typeof frontmatter.title === "string" && frontmatter.title.trim()) ||
-    entry.title ||
-    toTitleCase(entry.slug);
   const showMetadata = metadataOpen;
   const hasEntry = Boolean(loadedEntry) && !isLoading && !loadError;
 
   return (
     <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg-base">
-      <header className="flex min-h-16 items-center gap-3 border-b border-white/10 bg-surface-panel px-5">
-        <Icon
-          aria-hidden="true"
-          className="shrink-0 text-text-subtle"
-          size={18}
-          strokeWidth={2.1}
-        />
-        <div className="min-w-0 flex-1">
-          <h2 className="m-0 truncate text-[1rem] font-black text-text-primary" title={entry.slug}>
-            {headerTitle}
-          </h2>
-        </div>
-        <Badge variant={entry.extension === "mdx" ? "accent" : "neutral"}>
-          {entry.extension.toUpperCase()}
-        </Badge>
-        <Badge variant={isDirty ? "warning" : "muted"}>{isDirty ? "Unsaved" : "Saved"}</Badge>
-
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={!isDirty || hasErrors || isSaving || isLoading}
-          onClick={handleSave}
-        >
-          <Save aria-hidden="true" size={14} strokeWidth={2.4} />
-          {isSaving ? "Saving..." : "Save"}
-        </Button>
-      </header>
-
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-h-0 overflow-auto">
           {isLoading ? (
-            <div className="flex items-center gap-2 p-6 text-[0.86rem] font-bold text-text-faint">
+            <div className="flex items-center gap-2 p-6 text-base font-normal text-text-faint">
               <Loader2 aria-hidden="true" className="animate-spin" size={16} strokeWidth={2.2} />
               Reading entry...
             </div>
@@ -334,7 +332,7 @@ export function EntryEditor({
                   size={18}
                   strokeWidth={2.2}
                 />
-                <p className="m-0 text-[0.86rem] leading-5">{loadError}</p>
+                <p className="m-0 text-base leading-5">{loadError}</p>
               </div>
               <Button className="w-fit" size="sm" variant="danger" onClick={loadSelectedEntry}>
                 Retry
@@ -344,7 +342,7 @@ export function EntryEditor({
             <div className="mx-auto grid max-w-3xl gap-6 px-8 py-8">
               {saveError ? (
                 <div
-                  className="flex items-start gap-2 rounded-orbit border border-danger/25 bg-danger/10 px-3 py-2.5 text-[0.82rem] leading-5 text-danger-ink"
+                  className="flex items-start gap-2 rounded-orbit border border-danger/25 bg-danger/10 px-3 py-2.5 text-base leading-5 text-danger-ink"
                   role="alert"
                 >
                   <AlertCircle
@@ -394,7 +392,7 @@ export function EntryEditor({
 
                 {imageError ? (
                   <div
-                    className="flex items-start gap-2 rounded-orbit border border-danger/25 bg-danger/10 px-3 py-2.5 text-[0.82rem] leading-5 text-danger-ink"
+                    className="flex items-start gap-2 rounded-orbit border border-danger/25 bg-danger/10 px-3 py-2.5 text-base leading-5 text-danger-ink"
                     role="alert"
                   >
                     <AlertCircle
@@ -408,7 +406,12 @@ export function EntryEditor({
                 ) : null}
 
                 {contentMode === "edit" ? (
-                  <MarkdownEditor value={body} onChange={setBody} onDropImage={handleDropImage} />
+                  <MarkdownEditor
+                    value={body}
+                    onChange={setBody}
+                    onDropImage={handleDropImage}
+                    onSelectImage={handleSelectImage}
+                  />
                 ) : (
                   <MarkdownPreview body={body} />
                 )}
@@ -420,12 +423,14 @@ export function EntryEditor({
         {hasEntry && showMetadata ? (
           <MetadataPanel
             projectPath={projectPath}
+            entryFilePath={loadedEntry?.filePath ?? entry.filePath}
             primaryFields={primaryFields}
             additionalFields={additionalFields}
             values={frontmatter}
             errors={mergedErrors}
             onChange={handleFieldChange}
             onFieldError={handleFieldError}
+            onChooseImage={handleSelectImage}
             onCollapse={onToggleMetadata}
           />
         ) : null}
@@ -446,29 +451,34 @@ export function EntryEditor({
         open={reloadConfirmationOpen}
         title="Discard unsaved changes?"
       />
+      {imageImportConfirmation}
     </section>
   );
 }
 
 type MetadataPanelProps = {
   projectPath: string;
+  entryFilePath: string;
   primaryFields: FrontmatterField[];
   additionalFields: FrontmatterField[];
   values: Record<string, FrontmatterValue>;
   errors: FrontmatterErrors;
   onChange: (name: string, value: FrontmatterValue) => void;
   onFieldError: (name: string, error: string | null) => void;
+  onChooseImage: (currentReference?: string) => Promise<string | null>;
   onCollapse: () => void;
 };
 
 function MetadataPanel({
   projectPath,
+  entryFilePath,
   primaryFields,
   additionalFields,
   values,
   errors,
   onChange,
   onFieldError,
+  onChooseImage,
   onCollapse,
 }: MetadataPanelProps) {
   const isEmpty = primaryFields.length === 0 && additionalFields.length === 0;
@@ -479,7 +489,7 @@ function MetadataPanel({
       aria-label="Metadata"
     >
       <header className="flex min-h-12 items-center gap-2 border-b border-white/10 px-4">
-        <h3 className="m-0 flex-1 text-[0.78rem] font-black uppercase tracking-wide text-text-subtle">
+        <h3 className="m-0 flex-1 text-sm font-medium uppercase tracking-wide text-text-subtle">
           Metadata
         </h3>
         <IconButton label="Hide metadata" tooltip="Hide metadata" onClick={onCollapse}>
@@ -489,18 +499,20 @@ function MetadataPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {isEmpty ? (
-          <p className="m-0 text-[0.82rem] font-bold text-text-faint">
+          <p className="m-0 text-base font-normal text-text-faint">
             This entry has no frontmatter fields yet.
           </p>
         ) : (
           <FrontmatterForm
             projectPath={projectPath}
+            entryFilePath={entryFilePath}
             primaryFields={primaryFields}
             additionalFields={additionalFields}
             values={values}
             errors={errors}
             onChange={onChange}
             onFieldError={onFieldError}
+            onChooseImage={onChooseImage}
           />
         )}
       </div>

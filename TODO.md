@@ -114,21 +114,21 @@ Orbit Editor v0.1 is complete when a user can:
 
 ## 8. Assets
 
-- [ ] Add image selection support.
-- [ ] Optionally copy selected images into the Astro project.
-- [ ] Generate correct image references for saved frontmatter or Markdown.
-- [ ] Avoid accessing files outside the selected project unless the user chooses them.
-- [ ] Show clear errors for missing or unreadable assets.
+- [x] Add image selection support.
+- [x] Optionally copy selected images into the Astro project.
+- [x] Generate correct image references for saved frontmatter or Markdown.
+- [x] Avoid accessing files outside the selected project unless the user chooses them.
+- [x] Show clear errors for missing or unreadable assets.
 
 ## 9. Astro Preview
 
-- [ ] Detect the project dev command.
-- [ ] Start the Astro dev server from the selected project.
-- [ ] Stop the Astro dev server.
-- [ ] Display preview inside Orbit Editor.
-- [ ] Show dev server status.
-- [ ] Show actionable errors when the server cannot start.
-- [ ] Clean up the dev server process when closing or switching projects.
+- [x] Detect the project dev command.
+- [x] Start the Astro dev server from the selected project.
+- [x] Stop the Astro dev server.
+- [x] Display preview inside Orbit Editor.
+- [x] Show dev server status.
+- [x] Show actionable errors when the server cannot start.
+- [x] Clean up the dev server process when closing or switching projects.
 
 ## 10. UX Quality
 

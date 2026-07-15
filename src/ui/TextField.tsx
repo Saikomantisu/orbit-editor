@@ -16,7 +16,7 @@ export function TextField({ className, error, hint, id, label, ...props }: TextF
 
   return (
     <label className="grid gap-1.5" htmlFor={inputId}>
-      <span className="text-[0.68rem] font-black uppercase tracking-[0.06em] text-text-faint">
+      <span className="text-xs font-medium uppercase tracking-[0.06em] text-text-faint">
         {label}
       </span>
       <input
@@ -24,18 +24,18 @@ export function TextField({ className, error, hint, id, label, ...props }: TextF
         aria-describedby={describedBy}
         aria-invalid={error ? true : undefined}
         className={cx(
-          "min-h-9 w-full rounded-orbit border border-white/10 bg-white/[0.05] px-2.5 text-[0.86rem] text-text-primary outline-none transition-colors placeholder:text-text-faint focus:border-accent/45 focus-visible:ring-2 focus-visible:ring-accent/35",
+          "min-h-9 w-full rounded-orbit border border-white/10 bg-white/[0.05] px-2.5 text-base text-text-primary outline-none transition-colors placeholder:text-text-faint focus:border-accent/45 focus-visible:ring-2 focus-visible:ring-accent/35",
           className,
         )}
         {...props}
       />
       {hint ? (
-        <p id={hintId} className="m-0 text-xs leading-5 text-text-faint">
+        <p id={hintId} className="m-0 text-xs text-text-faint">
           {hint}
         </p>
       ) : null}
       {error ? (
-        <p id={errorId} className="m-0 text-xs leading-5 text-danger-ink">
+        <p id={errorId} className="m-0 text-xs text-danger-ink">
           {error}
         </p>
       ) : null}
