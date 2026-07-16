@@ -1,5 +1,14 @@
-import { AlertCircle, ExternalLink, Loader2, Play, RotateCw, Square } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Loader2,
+  Play,
+  RotateCw,
+  Square,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getPreviewStatus,
   openPreviewInBrowser,
@@ -14,6 +23,8 @@ import { EmptyState } from "../../ui/EmptyState";
 type AstroPreviewProps = {
   projectPath: string;
 };
+
+type PreviewCommand = "back" | "forward" | "reload";
 
 const stoppedStatus: PreviewStatus = {
   state: "stopped",
@@ -41,11 +52,34 @@ function isSameStatus(current: PreviewStatus, next: PreviewStatus) {
   );
 }
 
+function isPreviewLocationMessage(
+  value: unknown,
+): value is { type: "orbit:preview-location"; url: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === "orbit:preview-location" &&
+    "url" in value &&
+    typeof value.url === "string"
+  );
+}
+
+function originFrom(url: string | null) {
+  try {
+    return url ? new URL(url).origin : null;
+  } catch {
+    return null;
+  }
+}
+
 export function AstroPreview({ projectPath }: AstroPreviewProps) {
   const [status, setStatus] = useState<PreviewStatus>(stoppedStatus);
   const [isWorking, setIsWorking] = useState(false);
   const [frameKey, setFrameKey] = useState(0);
   const [browserError, setBrowserError] = useState<string | null>(null);
+  const [address, setAddress] = useState("");
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const updateStatus = useCallback((nextStatus: PreviewStatus) => {
     setStatus((currentStatus) =>
@@ -64,6 +98,37 @@ export function AstroPreview({ projectPath }: AstroPreviewProps) {
   useEffect(() => {
     void refreshStatus();
   }, [refreshStatus]);
+
+  useEffect(() => {
+    if (status.url) {
+      setAddress(status.url);
+    }
+  }, [status.url]);
+
+  useEffect(() => {
+    const previewOrigin = originFrom(status.url);
+    if (!previewOrigin) {
+      return;
+    }
+
+    const updateAddressFromPreview = (event: MessageEvent<unknown>) => {
+      if (
+        event.source !== iframeRef.current?.contentWindow ||
+        event.origin !== previewOrigin ||
+        !isPreviewLocationMessage(event.data)
+      ) {
+        return;
+      }
+
+      const nextOrigin = originFrom(event.data.url);
+      if (nextOrigin === previewOrigin) {
+        setAddress(event.data.url);
+      }
+    };
+
+    window.addEventListener("message", updateAddressFromPreview);
+    return () => window.removeEventListener("message", updateAddressFromPreview);
+  }, [status.url]);
 
   useEffect(() => {
     if (status.state !== "starting") {
@@ -118,43 +183,65 @@ export function AstroPreview({ projectPath }: AstroPreviewProps) {
     }
   }, []);
 
-  const isActive = status.state === "starting" || status.state === "running";
+  const sendPreviewCommand = useCallback(
+    (command: PreviewCommand) => {
+      const previewOrigin = originFrom(status.url);
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "orbit:preview-command", command },
+        previewOrigin ?? "*",
+      );
+    },
+    [status.url],
+  );
 
   return (
     <section
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg-base"
       aria-label="Astro site preview"
     >
-      <header className="flex min-h-16 items-center gap-3 border-b border-white/10 bg-surface-panel px-5">
-        <div className="min-w-0 flex-1">
-          <h2 className="m-0 text-lg font-semibold text-text-primary">Astro Preview</h2>
-          <p className="m-0 mt-0.5 truncate text-xs font-normal text-text-faint">
-            {status.command ?? "Uses this project's package.json dev script"}
-          </p>
-        </div>
-        {isActive ? (
-          <Button size="sm" variant="danger" disabled={isWorking} onClick={() => void stop()}>
-            <Square aria-hidden="true" size={13} fill="currentColor" />
-            Stop
-          </Button>
-        ) : (
-          <Button size="sm" variant="primary" disabled={isWorking} onClick={() => void start()}>
-            <Play aria-hidden="true" size={14} fill="currentColor" />
-            Start preview
-          </Button>
-        )}
-      </header>
-
       {status.state === "running" && status.url ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-10 items-center gap-2 border-b border-white/10 bg-white/[0.025] px-4">
-            <span className="min-w-0 flex-1 truncate text-sm font-normal text-text-muted">
-              {status.url}
-            </span>
-            <Button size="sm" variant="ghost" onClick={() => setFrameKey((key) => key + 1)}>
-              <RotateCw aria-hidden="true" size={14} />
-              Reload
-            </Button>
+          <div className="flex min-h-14 items-center gap-1.5 border-b border-white/10 bg-surface-panel px-4">
+            <button
+              aria-label="Go back"
+              className="inline-flex size-8 items-center justify-center rounded-orbit text-text-muted transition-colors hover:bg-white/[0.055] hover:text-text-primary"
+              onClick={() => sendPreviewCommand("back")}
+              title="Back"
+              type="button"
+            >
+              <ChevronLeft aria-hidden="true" size={18} />
+            </button>
+            <button
+              aria-label="Go forward"
+              className="inline-flex size-8 items-center justify-center rounded-orbit text-text-muted transition-colors hover:bg-white/[0.055] hover:text-text-primary"
+              onClick={() => sendPreviewCommand("forward")}
+              title="Forward"
+              type="button"
+            >
+              <ChevronRight aria-hidden="true" size={18} />
+            </button>
+            <div className="min-w-0 flex flex-1">
+              <label className="sr-only" htmlFor="preview-address">
+                Preview address
+              </label>
+              <input
+                aria-readonly="true"
+                className="h-8 min-w-0 flex-1 cursor-default rounded-orbit border border-white/10 bg-white/[0.035] px-3 text-sm text-text-muted outline-none"
+                id="preview-address"
+                readOnly
+                title="Preview address"
+                value={address}
+              />
+            </div>
+            <button
+              aria-label="Reload preview"
+              className="inline-flex size-8 items-center justify-center rounded-orbit text-text-muted transition-colors hover:bg-white/[0.055] hover:text-text-primary"
+              onClick={() => setFrameKey((key) => key + 1)}
+              title="Reload"
+              type="button"
+            >
+              <RotateCw aria-hidden="true" size={15} />
+            </button>
             <button
               type="button"
               className="inline-flex min-h-8 items-center gap-1.5 rounded-orbit px-2.5 text-sm font-medium text-text-muted hover:bg-white/[0.055] hover:text-text-primary"
@@ -163,6 +250,10 @@ export function AstroPreview({ projectPath }: AstroPreviewProps) {
               <ExternalLink aria-hidden="true" size={14} />
               Browser
             </button>
+            <Button size="sm" variant="danger" disabled={isWorking} onClick={() => void stop()}>
+              <Square aria-hidden="true" size={13} fill="currentColor" />
+              Stop
+            </Button>
           </div>
           {browserError ? (
             <p
@@ -175,7 +266,8 @@ export function AstroPreview({ projectPath }: AstroPreviewProps) {
           <iframe
             key={frameKey}
             className="min-h-0 w-full flex-1 border-0 bg-white"
-            src={status.url}
+            ref={iframeRef}
+            src={address || status.url}
             title="Astro website preview"
           />
         </div>
@@ -195,7 +287,17 @@ export function AstroPreview({ projectPath }: AstroPreviewProps) {
       {status.state === "stopped" ? (
         <div className="flex h-full items-center justify-center p-8">
           <EmptyState icon={<Play aria-hidden="true" size={26} />} title="Preview your Astro site">
-            Start the project’s own dev server to view the real site here.
+            <p className="m-0">Start the project’s own dev server to view the real site here.</p>
+            <Button
+              className="mt-4"
+              size="sm"
+              variant="primary"
+              disabled={isWorking}
+              onClick={() => void start()}
+            >
+              <Play aria-hidden="true" size={14} fill="currentColor" />
+              Start preview
+            </Button>
           </EmptyState>
         </div>
       ) : null}

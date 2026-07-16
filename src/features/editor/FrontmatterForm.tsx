@@ -50,8 +50,8 @@ export function FrontmatterForm({
   onChooseImage,
 }: FrontmatterFormProps) {
   return (
-    <div className="grid gap-6">
-      <section className="grid gap-4">
+    <div className="grid min-w-0 gap-6">
+      <section className="grid min-w-0 gap-4">
         {primaryFields.length ? (
           primaryFields.map((field) => (
             <FrontmatterControl
@@ -75,12 +75,12 @@ export function FrontmatterForm({
       </section>
 
       {additionalFields.length ? (
-        <section className="grid gap-3 border-t border-white/10 pt-5">
+        <section className="grid min-w-0 gap-3 border-t border-white/10 pt-5">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <h3 className="m-0 text-base font-semibold text-text-primary">Additional fields</h3>
             <Badge variant="muted">{additionalFields.length}</Badge>
           </div>
-          <div className="grid gap-4">
+          <div className="grid min-w-0 gap-4">
             {additionalFields.map((field) => (
               <FrontmatterControl
                 key={field.name}
@@ -340,7 +340,7 @@ function DateField({
   return (
     <Field label={`${field.name}${field.required ? " *" : ""}`} hint={hint} error={error}>
       <fieldset
-        className="relative m-0 border-0 p-0"
+        className="relative m-0 min-w-0 border-0 p-0"
         ref={fieldRef}
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget)) {
@@ -837,12 +837,12 @@ function TagEditor({
 
   return (
     <Field label={`${field.name}${field.required ? " *" : ""}`} hint={hint} error={error}>
-      <div className="grid gap-2 rounded-orbit border border-white/10 bg-white/[0.035] p-2">
-        <div className="flex min-h-7 flex-wrap gap-2">
+      <div className="grid min-w-0 gap-2 rounded-orbit border border-white/10 bg-white/[0.035] p-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           {tags.length ? (
             tags.map((tag) => (
               <span
-                className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-accent/12 px-1.5 py-1 text-sm font-normal text-accent-hover"
+                className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md bg-accent/12 px-1.5 py-1 text-sm font-normal text-accent-hover"
                 key={tag}
               >
                 {looksLikeImagePath(tag) ? (
@@ -853,7 +853,7 @@ function TagEditor({
                     entryFilePath={entryFilePath}
                   />
                 ) : null}
-                <span className="truncate">{tag}</span>
+                <span className="min-w-0 truncate">{tag}</span>
                 <IconButton
                   className="h-5 w-5"
                   label={`Remove ${tag}`}
@@ -1007,7 +1007,7 @@ function isCompleteDate(value: string) {
 
 function controlClasses(className?: string) {
   return cx(
-    "min-h-9 w-full rounded-orbit border border-white/10 bg-white/[0.05] px-2.5 text-base text-text-primary outline-none transition-colors placeholder:text-text-faint focus:border-accent/45 focus-visible:ring-2 focus-visible:ring-accent/35 disabled:opacity-60",
+    "min-h-9 min-w-0 max-w-full w-full rounded-orbit border border-white/10 bg-white/[0.05] px-2.5 text-base text-text-primary outline-none transition-colors placeholder:text-text-faint focus:border-accent/45 focus-visible:ring-2 focus-visible:ring-accent/35 disabled:opacity-60",
     className,
   );
 }

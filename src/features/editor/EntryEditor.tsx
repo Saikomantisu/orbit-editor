@@ -543,7 +543,7 @@ function MetadataPanel({
 
   return (
     <aside
-      className="flex h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden border-l border-white/10 bg-surface-panel"
+      className="flex h-full min-h-0 w-[320px] min-w-0 shrink-0 flex-col overflow-hidden border-l border-white/10 bg-surface-panel"
       aria-label="Metadata"
     >
       <header className="flex min-h-12 items-center gap-2 border-b border-white/10 px-4">
@@ -555,7 +555,7 @@ function MetadataPanel({
         </IconButton>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4">
         {isEmpty ? (
           <p className="m-0 text-base font-normal text-text-faint">
             This entry has no frontmatter fields yet.

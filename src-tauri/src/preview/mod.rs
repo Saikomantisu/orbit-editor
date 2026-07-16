@@ -1,8 +1,10 @@
 use serde::Serialize;
+#[cfg(target_os = "macos")]
+use std::env;
 use std::{
     fs,
-    io::{BufRead, BufReader},
-    net::{TcpListener, TcpStream},
+    io::{BufRead, BufReader, Read, Write},
+    net::{SocketAddr, TcpListener, TcpStream},
     path::Path,
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
@@ -12,7 +14,6 @@ use std::{
 
 const PREVIEW_HOST: &str = "127.0.0.1";
 const PREVIEW_PORT: u16 = 4321;
-
 #[derive(Clone, Default)]
 pub struct PreviewManager {
     inner: Arc<Mutex<PreviewProcess>>,
@@ -92,6 +93,8 @@ pub fn start_dev_server(
             .stdout(Stdio::null())
             .stderr(Stdio::piped());
 
+        configure_package_manager_environment(&mut command_process);
+
         // Package managers start Astro as a child process. Give the runner its own process group
         // so Stop can also terminate Astro instead of leaving port 4321 occupied.
         #[cfg(unix)]
@@ -133,6 +136,37 @@ pub fn start_dev_server(
     }
     wait_for_server(manager.clone(), project_path);
     status(manager)
+}
+
+// Apps launched by macOS Finder do not inherit the user's terminal PATH. Package
+// managers such as pnpm (and the Node executable they delegate to) are commonly
+// added by the user's shell configuration, so load that PATH before spawning the
+// project-owned dev command.
+#[cfg(target_os = "macos")]
+fn configure_package_manager_environment(command: &mut Command) {
+    if let Some(path) = macos_login_shell_path() {
+        command.env("PATH", path);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn configure_package_manager_environment(_: &mut Command) {}
+
+#[cfg(target_os = "macos")]
+fn macos_login_shell_path() -> Option<String> {
+    let shell = env::var_os("SHELL").unwrap_or_else(|| "/bin/zsh".into());
+    let output = Command::new(shell)
+        .args(["-lic", "printf '\\n__ORBIT_PATH__%s\\n' \"$PATH\""])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let output = String::from_utf8(output.stdout).ok()?;
+    let path = output.rsplit_once("__ORBIT_PATH__")?.1.trim();
+    (!path.is_empty()).then(|| path.to_string())
 }
 
 pub fn stop_dev_server(manager: &PreviewManager) -> Result<PreviewStatus, String> {
@@ -208,11 +242,9 @@ fn canonical_project_path(project_path: &str) -> Result<String, String> {
 fn validated_astro_project_path(project_path: &str) -> Result<String, String> {
     let validation = crate::project::scan_project(project_path)?;
     if !validation.is_valid {
-        return Err(validation
-            .errors
-            .into_iter()
-            .next()
-            .unwrap_or_else(|| "Choose a valid Astro project before starting preview.".to_string()));
+        return Err(validation.errors.into_iter().next().unwrap_or_else(|| {
+            "Choose a valid Astro project before starting preview.".to_string()
+        }));
     }
 
     canonical_project_path(&validation.path)
@@ -300,7 +332,7 @@ fn wait_for_server(manager: PreviewManager, project_path: String) {
             ) {
                 return;
             }
-            if TcpStream::connect((PREVIEW_HOST, PREVIEW_PORT)).is_ok() {
+            if preview_responds_to_http_request() {
                 process.status.state = PreviewState::Running;
                 process.status.message = None;
                 process.status.can_stop_port_process = false;
@@ -447,6 +479,48 @@ fn preview_url() -> String {
     format!("http://{PREVIEW_HOST}:{PREVIEW_PORT}")
 }
 
+// Astro can bind its port before it has finished preparing the first page. A TCP
+// connection alone therefore lets the iframe load too early and occasionally renders
+// a blank initial preview. Wait until the root URL has returned a successful response.
+fn preview_responds_to_http_request() -> bool {
+    let address = SocketAddr::from(([127, 0, 0, 1], PREVIEW_PORT));
+    let timeout = Duration::from_millis(100);
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, timeout) else {
+        return false;
+    };
+
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
+    if stream
+        .write_all(
+            format!(
+                "GET / HTTP/1.1\r\nHost: {PREVIEW_HOST}:{PREVIEW_PORT}\r\nConnection: close\r\n\r\n"
+            )
+            .as_bytes(),
+        )
+        .is_err()
+    {
+        return false;
+    }
+
+    let mut response_start = [0; 16];
+    let Ok(bytes_read) = stream.read(&mut response_start) else {
+        return false;
+    };
+
+    is_successful_http_response(&response_start[..bytes_read])
+}
+
+fn is_successful_http_response(response_start: &[u8]) -> bool {
+    let Ok(response_start) = std::str::from_utf8(response_start) else {
+        return false;
+    };
+    let Some(status) = response_start.split_whitespace().nth(1) else {
+        return false;
+    };
+    matches!(status.parse::<u16>(), Ok(200..=399))
+}
+
 fn preview_port_is_in_use() -> bool {
     TcpListener::bind((PREVIEW_HOST, PREVIEW_PORT)).is_err()
 }
@@ -466,4 +540,24 @@ fn preview_port_listener_pids() -> Result<Vec<i32>, String> {
         .lines()
         .filter_map(|line| line.trim().parse::<i32>().ok())
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_successful_http_response;
+
+    #[test]
+    fn accepts_successful_http_responses() {
+        assert!(is_successful_http_response(b"HTTP/1.1 200 OK\r\n"));
+        assert!(is_successful_http_response(b"HTTP/1.1 302 Found\r\n"));
+    }
+
+    #[test]
+    fn rejects_incomplete_and_failed_http_responses() {
+        assert!(!is_successful_http_response(b"HTTP/1.1"));
+        assert!(!is_successful_http_response(
+            b"HTTP/1.1 503 Service Unavailable\r\n"
+        ));
+        assert!(!is_successful_http_response(b"not an HTTP response"));
+    }
 }
