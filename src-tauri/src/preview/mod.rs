@@ -544,7 +544,45 @@ fn preview_port_listener_pids() -> Result<Vec<i32>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::is_successful_http_response;
+    use super::*;
+    use std::{
+        fs,
+        path::PathBuf,
+        sync::atomic::{AtomicUsize, Ordering},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    static TEST_PROJECT_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    struct TestProject {
+        path: PathBuf,
+    }
+
+    impl TestProject {
+        fn new() -> Self {
+            let timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock should be after Unix epoch")
+                .as_nanos();
+            let counter = TEST_PROJECT_COUNTER.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "orbit-editor-preview-test-{}-{counter}-{timestamp}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&path).expect("test project directory should be created");
+            Self { path }
+        }
+
+        fn write(&self, path: &str, contents: &str) {
+            fs::write(self.path.join(path), contents).expect("test file should be written");
+        }
+    }
+
+    impl Drop for TestProject {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
 
     #[test]
     fn accepts_successful_http_responses() {
@@ -559,5 +597,52 @@ mod tests {
             b"HTTP/1.1 503 Service Unavailable\r\n"
         ));
         assert!(!is_successful_http_response(b"not an HTTP response"));
+    }
+
+    #[test]
+    fn starts_and_stops_the_project_dev_server() {
+        assert!(
+            !preview_port_is_in_use(),
+            "port 4321 must be free before running the preview lifecycle test"
+        );
+
+        let project = TestProject::new();
+        project.write(
+            "package.json",
+            r#"{
+              "scripts": { "dev": "node server.cjs" },
+              "devDependencies": { "astro": "^5.0.0" }
+            }"#,
+        );
+        project.write("astro.config.mjs", "export default {};");
+        project.write(
+            "server.cjs",
+            "require('http').createServer((_, response) => response.end('ok')).listen(4321, '127.0.0.1');",
+        );
+
+        let manager = PreviewManager::default();
+        let project_path = project.path.to_string_lossy();
+        let starting = start_dev_server(&manager, &project_path).expect("server should start");
+        assert!(matches!(starting.state, PreviewState::Starting));
+
+        let mut running = false;
+        for _ in 0..40 {
+            thread::sleep(Duration::from_millis(100));
+            if matches!(
+                status(&manager).expect("status should be available").state,
+                PreviewState::Running
+            ) {
+                running = true;
+                break;
+            }
+        }
+        assert!(running, "preview should report a running HTTP server");
+
+        let stopped = stop_dev_server(&manager).expect("server should stop");
+        assert!(matches!(stopped.state, PreviewState::Stopped));
+        assert!(
+            !preview_port_is_in_use(),
+            "stopping preview should release port 4321"
+        );
     }
 }

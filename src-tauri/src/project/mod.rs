@@ -217,3 +217,92 @@ fn find_file_with_stem(directory: &Path, stem: &str) -> Option<std::path::PathBu
                     .is_some_and(|file_stem| file_stem == stem)
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        fs,
+        path::PathBuf,
+        sync::atomic::{AtomicUsize, Ordering},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    static TEST_PROJECT_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    struct TestProject {
+        path: PathBuf,
+    }
+
+    impl TestProject {
+        fn new() -> Self {
+            let timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock should be after Unix epoch")
+                .as_nanos();
+            let counter = TEST_PROJECT_COUNTER.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "orbit-editor-project-test-{}-{counter}-{timestamp}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&path).expect("test project directory should be created");
+            Self { path }
+        }
+
+        fn write(&self, path: &str, contents: &str) {
+            let path = self.path.join(path);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).expect("test file parent should be created");
+            }
+            fs::write(path, contents).expect("test file should be written");
+        }
+    }
+
+    impl Drop for TestProject {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn accepts_a_valid_astro_project() {
+        let project = TestProject::new();
+        project.write(
+            "package.json",
+            r#"{ "devDependencies": { "astro": "^5.0.0" } }"#,
+        );
+        project.write("astro.config.mjs", "export default {};");
+        project.write("src/content/blog/hello.md", "---\ntitle: Hello\n---\n");
+
+        let validation = scan_project_path(&project.path).expect("scan should succeed");
+
+        assert!(validation.is_valid);
+        assert!(validation.errors.is_empty());
+        assert!(validation
+            .checks
+            .iter()
+            .any(|check| check.id == "astro-config" && check.ok));
+        assert!(validation
+            .checks
+            .iter()
+            .any(|check| check.id == "content-directory" && check.ok));
+    }
+
+    #[test]
+    fn rejects_a_non_astro_project_with_actionable_errors() {
+        let project = TestProject::new();
+        project.write("package.json", r#"{ "name": "not-astro" }"#);
+
+        let validation = scan_project_path(&project.path).expect("scan should succeed");
+
+        assert!(!validation.is_valid);
+        assert!(validation
+            .errors
+            .iter()
+            .any(|error| error.contains("does not list Astro")));
+        assert!(validation
+            .checks
+            .iter()
+            .any(|check| check.id == "astro-project-signal" && !check.ok));
+    }
+}

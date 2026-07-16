@@ -142,9 +142,9 @@ Orbit Editor v0.1 is complete when a user can:
 
 ## 11. Verification
 
-- [ ] Test opening a valid Astro project.
-- [ ] Test opening an invalid project.
-- [ ] Test collection detection.
+- [x] Test opening a valid Astro project.
+- [x] Test opening an invalid project.
+- [x] Test collection detection.
 - [x] Test schema detection fallback behavior.
 - [x] Test reading `.md` entries.
 - [x] Test reading `.mdx` entries.
@@ -154,9 +154,9 @@ Orbit Editor v0.1 is complete when a user can:
 - [x] Test saving changes.
 - [x] Test invalid frontmatter handling.
 - [x] Test missing file handling.
-- [ ] Test delete confirmation.
+- [x] Test delete confirmation.
 - [x] Test duplicate entry behavior.
-- [ ] Test preview start and stop behavior.
+- [x] Test preview start and stop behavior.
 
 ## Out Of Scope For v0.1
 

@@ -45,7 +45,7 @@ export function CollectionSidebar({
   if (isCollapsed) {
     return (
       <aside
-        className="flex w-12 shrink-0 justify-center border-r border-white/10 bg-surface-panel p-2"
+        className="flex h-full min-h-0 w-12 shrink-0 justify-center border-r border-white/10 bg-surface-panel p-2"
         aria-label="Collections and entries"
       >
         <IconButton label="Expand sidebar" tooltip="Expand sidebar" onClick={onToggleCollapsed}>

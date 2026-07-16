@@ -327,7 +327,7 @@ export function EntryEditor({
   const hasEntry = Boolean(loadedEntry) && !isLoading && !loadError;
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg-base">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg-base">
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-h-0 overflow-auto">
           {isLoading ? (
@@ -581,7 +581,7 @@ function MetadataPanel({
 function MetadataRail({ errorCount, onExpand }: { errorCount: number; onExpand: () => void }) {
   return (
     <aside
-      className="flex w-12 shrink-0 flex-col items-center gap-2 border-l border-white/10 bg-surface-panel p-2"
+      className="flex h-full min-h-0 w-12 shrink-0 flex-col items-center gap-2 border-l border-white/10 bg-surface-panel p-2"
       aria-label="Metadata"
     >
       <IconButton label="Show metadata" tooltip="Show metadata" onClick={onExpand}>
