@@ -48,6 +48,8 @@ pub struct EntrySummary {
     pub file_path: String,
     pub extension: EntryExtension,
     pub last_modified: Option<String>,
+    #[serde(skip_serializing)]
+    last_modified_at: Option<SystemTime>,
     pub draft: Option<bool>,
 }
 
@@ -256,12 +258,7 @@ fn scan_collection_directory(
         &mut collection.warnings,
     );
 
-    collection.entries.sort_by(|left, right| {
-        left.slug
-            .to_lowercase()
-            .cmp(&right.slug.to_lowercase())
-            .then_with(|| left.slug.cmp(&right.slug))
-    });
+    collection.entries.sort_by(sort_entries_newest_first);
 
     collection
 }
@@ -328,13 +325,15 @@ fn collect_entries(
             continue;
         };
 
+        let last_modified_at = entry_last_modified_at(&canonical_path);
         entries.push(EntrySummary {
             id: slug.clone(),
             slug,
             title: entry_title(&canonical_path),
             file_path: path_to_string(&canonical_path),
             extension,
-            last_modified: entry_last_modified(&canonical_path),
+            last_modified: last_modified_at.and_then(system_time_to_rfc3339),
+            last_modified_at,
             draft: entry_draft(&canonical_path),
         });
     }
@@ -397,13 +396,15 @@ fn entry_summary(collection_root: &Path, file_path: &Path) -> Result<EntrySummar
         return Err("Could not determine the entry slug from its path.".to_string());
     };
 
+    let last_modified_at = entry_last_modified_at(&canonical_path);
     Ok(EntrySummary {
         id: slug.clone(),
         slug,
         title: entry_title(&canonical_path),
         file_path: path_to_string(&canonical_path),
         extension,
-        last_modified: entry_last_modified(&canonical_path),
+        last_modified: last_modified_at.and_then(system_time_to_rfc3339),
+        last_modified_at,
         draft: entry_draft(&canonical_path),
     })
 }
@@ -445,8 +446,19 @@ fn entry_draft(file_path: &Path) -> Option<bool> {
 }
 
 fn entry_last_modified(file_path: &Path) -> Option<String> {
-    let modified = fs::metadata(file_path).ok()?.modified().ok()?;
-    system_time_to_rfc3339(modified)
+    entry_last_modified_at(file_path).and_then(system_time_to_rfc3339)
+}
+
+fn entry_last_modified_at(file_path: &Path) -> Option<SystemTime> {
+    fs::metadata(file_path).ok()?.modified().ok()
+}
+
+fn sort_entries_newest_first(left: &EntrySummary, right: &EntrySummary) -> std::cmp::Ordering {
+    right
+        .last_modified_at
+        .cmp(&left.last_modified_at)
+        .then_with(|| left.slug.to_lowercase().cmp(&right.slug.to_lowercase()))
+        .then_with(|| left.slug.cmp(&right.slug))
 }
 
 fn system_time_to_rfc3339(value: SystemTime) -> Option<String> {
@@ -1348,7 +1360,7 @@ mod tests {
         fs,
         path::{Path, PathBuf},
         sync::atomic::{AtomicUsize, Ordering},
-        time::{SystemTime, UNIX_EPOCH},
+        time::{Duration, SystemTime, UNIX_EPOCH},
     };
 
     static TEST_PROJECT_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -1388,6 +1400,13 @@ mod tests {
             }
 
             fs::write(file_path, contents).expect("test file should be written");
+        }
+
+        fn set_file_modified(&self, path: &str, seconds_since_epoch: u64) {
+            let file = fs::File::open(self.path.join(path)).expect("test file should be readable");
+            let modified = UNIX_EPOCH + Duration::from_secs(seconds_since_epoch);
+            file.set_times(fs::FileTimes::new().set_modified(modified))
+                .expect("test file modification time should be set");
         }
 
         fn scan(&self) -> CollectionScan {
@@ -1470,11 +1489,12 @@ mod tests {
         project.create_file("src/content/blog/_partials/intro.mdx");
 
         let scan = project.scan();
-        let entry_slugs = scan.collections[0]
+        let mut entry_slugs = scan.collections[0]
             .entries
             .iter()
             .map(|entry| entry.slug.as_str())
             .collect::<Vec<_>>();
+        entry_slugs.sort_unstable();
 
         assert_eq!(entry_slugs, vec!["_draft", "_partials/intro"]);
     }
@@ -1516,6 +1536,14 @@ mod tests {
         project.create_file("src/content/Zeta/Alpha.md");
         project.create_file("src/content/blog/z-last.md");
         project.create_file("src/content/blog/a-first.mdx");
+        for path in [
+            "src/content/Zeta/beta.md",
+            "src/content/Zeta/Alpha.md",
+            "src/content/blog/z-last.md",
+            "src/content/blog/a-first.mdx",
+        ] {
+            project.set_file_modified(path, 1_700_000_000);
+        }
 
         let scan = project.scan();
 
@@ -1539,6 +1567,26 @@ mod tests {
             .map(|entry| entry.slug.as_str())
             .collect::<Vec<_>>();
         assert_eq!(zeta_entries, vec!["Alpha", "beta"]);
+    }
+
+    #[test]
+    fn sorts_entries_from_latest_modified_to_oldest() {
+        let project = TestProject::new();
+        project.create_file("src/content/blog/oldest.md");
+        project.create_file("src/content/blog/latest.md");
+        project.create_file("src/content/blog/middle.md");
+        project.set_file_modified("src/content/blog/oldest.md", 1_700_000_000);
+        project.set_file_modified("src/content/blog/latest.md", 1_700_000_200);
+        project.set_file_modified("src/content/blog/middle.md", 1_700_000_100);
+
+        let scan = project.scan();
+        let entry_slugs = scan.collections[0]
+            .entries
+            .iter()
+            .map(|entry| entry.slug.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(entry_slugs, vec!["latest", "middle", "oldest"]);
     }
 
     #[test]

@@ -26,7 +26,7 @@ export function AlertDialog({
     <AlertDialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <AlertDialogPrimitive.Portal>
         <AlertDialogPrimitive.Overlay className="fixed inset-x-0 bottom-0 top-[44px] z-40 bg-[#050510]/65 backdrop-blur-[10px]" />
-        <AlertDialogPrimitive.Content className="fixed left-1/2 top-[calc(44px+50%)] z-50 w-[min(360px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-orbit border border-white/10 bg-[#0e1022]/98 shadow-[0_24px_80px_rgb(0_0_0/0.38)] focus:outline-none">
+        <AlertDialogPrimitive.Content className="fixed left-1/2 top-[calc(44px+50%)] z-50 w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-orbit border border-white/10 bg-[#0e1022]/98 shadow-[0_24px_80px_rgb(0_0_0/0.38)] focus:outline-none">
           <div className="grid gap-3 border-b border-white/[0.09] px-3.5 py-3">
             <AlertDialogPrimitive.Title className="m-0 text-lg font-semibold text-text-primary">
               {title}
