@@ -9,14 +9,14 @@ frontmatter work.
 
 Orbit Editor v0.1 is complete when a user can:
 
-- [ ] Open an existing Astro project.
-- [ ] Detect Astro Content Collections automatically.
-- [ ] View all entries in a selected collection.
-- [ ] Create a new entry.
-- [ ] Edit frontmatter visually.
-- [ ] Edit Markdown content.
+- [x] Open an existing Astro project.
+- [x] Detect Astro Content Collections automatically.
+- [x] View all entries in a selected collection.
+- [x] Create a new entry.
+- [x] Edit frontmatter visually.
+- [x] Edit Markdown content.
 - [x] Save changes directly to disk.
-- [ ] Preview the Astro site inside Orbit Editor.
+- [x] Preview the Astro site inside Orbit Editor.
 
 ## 1. Project Selection
 
@@ -132,13 +132,13 @@ Orbit Editor v0.1 is complete when a user can:
 
 ## 10. UX Quality
 
-- [ ] Keep the interface fast and minimal.
-- [ ] Make common actions keyboard-friendly.
-- [ ] Use clear loading states.
-- [ ] Use actionable empty states.
-- [ ] Use actionable error messages.
-- [ ] Avoid hiding the fact that real project files are being edited.
-- [ ] Avoid adding cloud, account, or database assumptions.
+- [x] Keep the interface fast and minimal.
+- [x] Make common actions keyboard-friendly.
+- [x] Use clear loading states.
+- [x] Use actionable empty states.
+- [x] Use actionable error messages.
+- [x] Avoid hiding the fact that real project files are being edited.
+- [x] Avoid adding cloud, account, or database assumptions.
 
 ## 11. Verification
 

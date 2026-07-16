@@ -10,6 +10,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(preview::PreviewManager::default())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             commands::open_project,
             commands::select_image_asset,
@@ -26,6 +27,7 @@ pub fn run() {
             commands::stop_dev_server,
             commands::stop_process_on_preview_port,
             commands::preview_status,
+            commands::open_preview_in_browser,
         ])
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {

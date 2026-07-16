@@ -2,6 +2,7 @@ import { AlertCircle, ExternalLink, Loader2, Play, RotateCw, Square } from "luci
 import { useCallback, useEffect, useState } from "react";
 import {
   getPreviewStatus,
+  openPreviewInBrowser,
   type PreviewStatus,
   startDevServer,
   stopDevServer,
@@ -44,6 +45,7 @@ export function AstroPreview({ projectPath }: AstroPreviewProps) {
   const [status, setStatus] = useState<PreviewStatus>(stoppedStatus);
   const [isWorking, setIsWorking] = useState(false);
   const [frameKey, setFrameKey] = useState(0);
+  const [browserError, setBrowserError] = useState<string | null>(null);
 
   const updateStatus = useCallback((nextStatus: PreviewStatus) => {
     setStatus((currentStatus) =>
@@ -107,6 +109,15 @@ export function AstroPreview({ projectPath }: AstroPreviewProps) {
     }
   }, [projectPath, updateStatus]);
 
+  const openInBrowser = useCallback(async () => {
+    setBrowserError(null);
+    try {
+      await openPreviewInBrowser();
+    } catch (error) {
+      setBrowserError(messageFrom(error));
+    }
+  }, []);
+
   const isActive = status.state === "starting" || status.state === "running";
 
   return (
@@ -144,16 +155,23 @@ export function AstroPreview({ projectPath }: AstroPreviewProps) {
               <RotateCw aria-hidden="true" size={14} />
               Reload
             </Button>
-            <a
+            <button
+              type="button"
               className="inline-flex min-h-8 items-center gap-1.5 rounded-orbit px-2.5 text-sm font-medium text-text-muted hover:bg-white/[0.055] hover:text-text-primary"
-              href={status.url}
-              target="_blank"
-              rel="noreferrer"
+              onClick={() => void openInBrowser()}
             >
               <ExternalLink aria-hidden="true" size={14} />
               Browser
-            </a>
+            </button>
           </div>
+          {browserError ? (
+            <p
+              className="m-0 border-b border-danger/25 bg-danger/10 px-4 py-2 text-sm text-danger-ink"
+              role="alert"
+            >
+              {browserError}
+            </p>
+          ) : null}
           <iframe
             key={frameKey}
             className="min-h-0 w-full flex-1 border-0 bg-white"

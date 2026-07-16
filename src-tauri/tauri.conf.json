@@ -30,7 +30,15 @@
       "assetProtocol": {
         "enable": true
       },
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost",
+        "font-src": "'self'",
+        "frame-src": "http://127.0.0.1:4321",
+        "img-src": "'self' asset: http://asset.localhost data: blob: https:",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'"
+      }
     }
   },
   "bundle": {

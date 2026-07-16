@@ -1,5 +1,6 @@
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 #[tauri::command]
 pub async fn open_project(
@@ -174,6 +175,25 @@ pub fn preview_status(
     preview: tauri::State<crate::preview::PreviewManager>,
 ) -> Result<crate::preview::PreviewStatus, String> {
     crate::preview::status(&preview)
+}
+
+#[tauri::command]
+pub fn open_preview_in_browser(
+    app: tauri::AppHandle,
+    preview: tauri::State<crate::preview::PreviewManager>,
+) -> Result<(), String> {
+    let status = crate::preview::status(&preview)?;
+    if !matches!(status.state, crate::preview::PreviewState::Running) {
+        return Err("Start the Astro preview before opening it in your browser.".to_string());
+    }
+
+    let url = status.url.ok_or_else(|| {
+        "The Astro preview address is unavailable. Restart preview and try again.".to_string()
+    })?;
+
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|error| format!("Could not open the Astro preview in your browser: {error}"))
 }
 
 fn allow_project_asset_previews(

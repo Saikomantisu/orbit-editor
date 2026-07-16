@@ -52,7 +52,7 @@ pub fn start_dev_server(
     manager: &PreviewManager,
     project_path: &str,
 ) -> Result<PreviewStatus, String> {
-    let project_path = canonical_project_path(project_path)?;
+    let project_path = validated_astro_project_path(project_path)?;
     let command = detect_dev_command(&project_path)?;
 
     let stderr;
@@ -203,6 +203,19 @@ fn canonical_project_path(project_path: &str) -> Result<String, String> {
         return Err("Choose an Astro project folder before starting preview.".to_string());
     }
     Ok(path.to_string_lossy().into_owned())
+}
+
+fn validated_astro_project_path(project_path: &str) -> Result<String, String> {
+    let validation = crate::project::scan_project(project_path)?;
+    if !validation.is_valid {
+        return Err(validation
+            .errors
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| "Choose a valid Astro project before starting preview.".to_string()));
+    }
+
+    canonical_project_path(&validation.path)
 }
 
 struct DevCommand {

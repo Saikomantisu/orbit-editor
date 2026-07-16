@@ -1,5 +1,5 @@
 import { ChevronLeft, Copy, FileCode2, FileText, MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { capitalizeFirst, formatEntryModified, toTitleCase } from "../../lib/format";
 import {
   type CollectionSummary,
@@ -53,6 +53,26 @@ export function EntryList({
   const [dialog, setDialog] = useState<DialogState>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        event.key.toLowerCase() !== "n" ||
+        isWorking ||
+        dialog
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      setActionError(null);
+      setDialog({ type: "create" });
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [dialog, isWorking]);
 
   async function refreshAndSelect(entry: EntrySummary) {
     await onRefreshCollections();
@@ -136,7 +156,7 @@ export function EntryList({
         </Badge>
         <IconButton
           label="Create entry"
-          tooltip="Create entry"
+          tooltip="Create entry (⌘N / Ctrl+N)"
           onClick={() => {
             setActionError(null);
             setDialog({ type: "create" });

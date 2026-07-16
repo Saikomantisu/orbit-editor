@@ -3,12 +3,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  FilePenLine,
   FileText,
   FolderOpen,
   Loader2,
   Pencil,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   type CollectionSummary,
   type Entry,
@@ -29,10 +30,15 @@ import { buildFrontmatterFields, type FrontmatterField } from "./frontmatterFiel
 import { type FrontmatterErrors, validateFrontmatter } from "./frontmatterValidation";
 import { normalizeForSave, stableStringify } from "./frontmatterValues";
 import { useImageAssetPicker } from "./imageAssets";
-import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 
 type ContentMode = "edit" | "preview";
+
+// CodeMirror and its language registry are only needed while editing a document. Keeping them
+// out of the shell makes project selection, collection browsing, and preview start faster.
+const MarkdownEditor = lazy(() =>
+  import("./MarkdownEditor").then(({ MarkdownEditor }) => ({ default: MarkdownEditor })),
+);
 
 type EntryEditorProps = {
   projectPath: string;
@@ -216,7 +222,16 @@ export function EntryEditor({
     } finally {
       setIsSaving(false);
     }
-  }, [body, hasErrors, isDirty, isSaving, loadedEntry, normalizedFrontmatter, onSaved, projectPath]);
+  }, [
+    body,
+    hasErrors,
+    isDirty,
+    isSaving,
+    loadedEntry,
+    normalizedFrontmatter,
+    onSaved,
+    projectPath,
+  ]);
 
   const handleDropImage = useCallback(
     async (sourcePath: string) => {
@@ -368,7 +383,22 @@ export function EntryEditor({
               ) : null}
 
               <section className="grid gap-3">
-                <div className="flex items-center justify-end gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-text-muted">
+                      <FilePenLine
+                        aria-hidden="true"
+                        className="shrink-0 text-text-subtle"
+                        size={14}
+                      />
+                      <span className="truncate" title={loadedEntry.filePath}>
+                        {loadedEntry.filePath}
+                      </span>
+                    </div>
+                    <p className="m-0 mt-1 text-xs text-text-faint">
+                      Changes save directly to this file in your Astro project.
+                    </p>
+                  </div>
                   <div className="w-44">
                     <SingleToggleGroup
                       label="Content view"
@@ -388,6 +418,26 @@ export function EntryEditor({
                       ]}
                     />
                   </div>
+                  <Button
+                    disabled={!isDirty || hasErrors || isSaving}
+                    size="sm"
+                    variant="primary"
+                    onClick={() => void handleSave()}
+                    title={
+                      hasErrors
+                        ? "Fix metadata errors before saving"
+                        : isDirty
+                          ? "Save changes (⌘S / Ctrl+S)"
+                          : "No changes to save"
+                    }
+                  >
+                    {isSaving ? "Saving…" : isDirty ? "Save" : "Saved"}
+                    {!isSaving && isDirty ? (
+                      <span className="rounded bg-accent-ink/10 px-1 py-0.5 text-2xs font-medium text-accent-ink/70">
+                        ⌘S
+                      </span>
+                    ) : null}
+                  </Button>
                 </div>
 
                 {imageError ? (
@@ -406,12 +456,20 @@ export function EntryEditor({
                 ) : null}
 
                 {contentMode === "edit" ? (
-                  <MarkdownEditor
-                    value={body}
-                    onChange={setBody}
-                    onDropImage={handleDropImage}
-                    onSelectImage={handleSelectImage}
-                  />
+                  <Suspense
+                    fallback={
+                      <div className="flex min-h-[24rem] items-center text-base text-text-faint">
+                        Loading editor…
+                      </div>
+                    }
+                  >
+                    <MarkdownEditor
+                      value={body}
+                      onChange={setBody}
+                      onDropImage={handleDropImage}
+                      onSelectImage={handleSelectImage}
+                    />
+                  </Suspense>
                 ) : (
                   <MarkdownPreview body={body} />
                 )}

@@ -193,6 +193,10 @@ export function getPreviewStatus() {
   return invoke<PreviewStatus>("preview_status");
 }
 
+export function openPreviewInBrowser() {
+  return invoke<void>("open_preview_in_browser");
+}
+
 export function startWindowDrag() {
   return getCurrentWindow().startDragging();
 }
